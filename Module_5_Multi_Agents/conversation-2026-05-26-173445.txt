@@ -1,0 +1,3 @@
+ ▐▛███▜▌   Claude Code v2.1.150
+▝▜█████▛▘  Opus 4.7 (1M context) · Claude Max
+  ▘▘ ▝▝    ~/Research/github/multi-agent-course/Module_5_Multi_Agents
