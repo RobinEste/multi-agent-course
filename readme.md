@@ -2,268 +2,164 @@
 
 Welcome to the official course repository for **Agent Engineering Bootcamp: Developers Edition**.
 
-This repo is for **anyone** and contains all code, exercises, templates, and project materials used throughout the course.
+This repo contains all the code, notebooks, exercises, and project materials used throughout the course — a structured journey from deployment efficiency to validated, production-grade agentic systems. You'll master the full stack: the agent harness and ReAct orchestration, LLM optimization, hybrid memory (RAG + Knowledge Graphs), multi-agent coordination, and the evaluation discipline that proves it all works.
 
-**What makes this different?**
-A structured 4-part journey from deployment efficiency to validated action. Master the complete agentic systems stack: Agent Harness and ReAct orchestration, LLM optimization, hybrid memory models (RAG + Knowledge Graphs), and production-grade evaluation frameworks. Build agentic systems that are reliable, observable, fast, safe, and production-ready.
-
-🔗 [Visit course page](https://maven.com/boring-bot/advanced-llm) • 💾 [Save $200 with code 200OFF](https://maven.com/boring-bot/advanced-llm?promoCode=200OFF)
+🔗 [Visit course page](https://maven.com/boring-bot/advanced-llm)
 
 ---
-<img width="2752" height="auto" alt="unnamed-3" src="assets/image.png" />
 
+<img width="2752" height="auto" alt="Agent Engineering Bootcamp" src="assets/image.png" />
 
 ## Quick Links
 
-### Course Structure: From Efficiency to Action
+**Course modules** (in teaching order):
 
-- [Module 1: The Agent Loop](#part-1-deployment--efficiency)
-- [Module 2: LLM Quantization and KV Caching](#part-1-deployment--efficiency)
-- [Part 2: Retrieval & Memory](#part-2-retrieval--memory)
-- [Part 3: Acting & Control](#part-3-acting--control)
-- [Part 4: Evals as Engineering Discipline](#part-4-evals-as-engineering-discipline)
-- [Technology Stack](#technology-stack)
-- [What You'll Build](#what-youll-build)
+1. [Module 1 — The Agent Loop, ReAct & the Harness](#module-1--the-agent-loop-react--the-harness)
+2. [Module 2 — LLM Quantization, KV Caching & Speculative Decoding](#module-2--llm-quantization-kv-caching--speculative-decoding)
+3. [Module 3 — Agentic RAG, Semantic Cache & Knowledge Graphs](#module-3--agentic-rag-semantic-cache--knowledge-graphs)
+4. [Module 4 — Voice Agents](#module-4--voice-agents)
+5. [Module 5 — Multi-Agent Systems (MCP · A2A · ADK)](#module-5--multi-agent-systems-mcp--a2a--adk)
+6. [Module 6 — Evaluation & Guardrails](#module-6--evaluation--guardrails)
 
----
-
-## Recommended Resource
-
-If you'd like to deepen your understanding of building LLM applications, refer to this book:
-
-[**Build LLM Applications from Scratch**](https://www.manning.com/books/build-llm-applications-from-scratch)
+**Also on this page:** [How to use this repo](#how-to-use-this-repo) · [Technology stack](#technology-stack) · [What you'll build](#what-youll-build)
 
 ---
 
 ## How to Use This Repo
 
-- This repo contains supplemental content for the course. Content is organized **week by week**, aligned with live sessions and project milestones.
-- **Google Colab Pro** is the preferred environment for running notebooks.
-- You may also **clone the repo locally** and run notebooks using Jupyter or your IDE.
-- Each notebook includes its own dependencies via `!pip install` — there is **no global `requirements.txt`**.
+- Content is organized **module by module** under `modules/`, aligned with the live sessions and project milestones.
+- **Google Colab Pro** is the preferred environment for the notebooks. You can also **clone locally** and run them in Jupyter or your IDE.
+- Most notebooks include their own dependencies via `!pip install`; where a module needs more, a `requirements.txt` sits alongside it.
 
----
+### Learn with Claude (AI tutor)
 
-## Cloning the Repository (Optional)
+This repo is also set up to be **read and used with [Claude](https://claude.com/claude-code)** as a personal tutor. Drop the folder into Claude Code (or upload it to Claude.ai) and Claude reads `CLAUDE.md` to act as a patient, interactive guide through the course — teaching one concept at a time, checking your understanding, and tracking your progress in `progress/learner-progress.md`.
+
+**Get started:** open the folder in Claude Code and type `/start`, or paste *"Read CLAUDE.md and run the `/start` onboarding"* into Claude.ai. Claude will greet you, ask how you like to learn, and begin Module 1.
+
+**Slash commands**
+
+- `/start` — onboard: pick a learning style and begin Module 1 (or the next one)
+- `/progress` — see where you are, what's next, and any flagged weak spots
+
+**Skills Claude auto-invokes** (in `.claude/skills/`) — just ask in plain language:
+
+| Skill | What it does | Try saying |
+|-------|--------------|------------|
+| `teach-module` | Runs an interactive lesson for a module, one concept at a time | *"Teach me module 3"* |
+| `quiz-me` | Quizzes you and tracks weak spots (never reveals answers first) | *"Quiz me on RAG"* |
+| `explain-eli5` | Re-explains a concept as simply as possible, with analogies | *"Explain KV caching like I'm five"* |
+| `build-along` | Guides you through a hands-on exercise step by step | *"Let's do the build-along for module 1"* |
+| `warmup` | A ~15-min pre-class refresher: recaps the last module, previews the next | *"I have class soon — warm me up for module 2"* |
+
+### Clone locally (optional)
 
 ```bash
-git clone https://github.com/hamzafarooq/multi-agent-course.git
+git clone https://github.com/rkarmaka/multi-agent-course.git
 cd multi-agent-course
 python3 -m venv .venv
 source .venv/bin/activate
 ```
 
+### Recommended resource
+
+To go deeper on building LLM applications, see the book
+[**Build LLM Applications from Scratch**](https://www.manning.com/books/build-llm-applications-from-scratch).
+
+---
+
 ## Course Curriculum
 
-> **The Agentic Systems Roadmap: From Efficiency to Action**
+> **The Agentic Systems Roadmap: From Efficiency to Action** — six modules across ~6 weeks, one 2-hour live session each. Every week ends with a working artifact you built yourself.
 
-This course follows a structured path from building performant AI systems to ensuring they act safely and effectively in production.
+### Module 1 — The Agent Loop, ReAct & the Harness
 
----
+Demystify what an agent actually is: the perceive → reason → act loop, the **ReAct** pattern, and what a production **harness** adds on top of a 50-line loop. Build a ReAct agent from scratch, no framework.
 
-### Part 1: Deployment & Efficiency
-
-**Building the Performance & Memory Engine**
-
-Focus on Quantization and KV Caching to define what is actually deployable in the real world.
-
-#### Key Topics:
-- LLM Deployment and Hosting
-- Quantization methods (4-bit, 8-bit)
-- KV Caching optimization
-- Speculative Decoding
-- Mixture of Experts
-
-#### Notebooks:
-
-TextSTreamer: [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/hamzafarooq/multi-agent-course/blob/main/Module_2/Quantization/TextStreamer_Meta_Llama_3_1_8B_Instruct.ipynb)
-
-Bitsnbytes Quantization: [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/hamzafarooq/multi-agent-course/blob/main/Module_2/Quantization/Bitsnbytes_4bit_Quantization.ipynb)
+**Key topics:** the agent loop · ReAct (Reasoning + Acting) · agent vs. workflow vs. chatbot · debugging via the trace · agent frameworks (smolagents)
 
 ---
 
-### Part 2: Retrieval & Memory
+### Module 2 — LLM Quantization, KV Caching & Speculative Decoding
 
-**Hybrid Memory Models**
+Make the agent loop fast and cheap enough to ship. Understand where latency really comes from and how to cut it.
 
-Integrates RAG for unstructured data and Knowledge Graphs for structured, symbolic reasoning.
+**Key topics:** quantization methods (4-bit / 8-bit, FP4 vs. NF4) · KV caching · speculative decoding · inference metrics (TTFT, ITL, throughput) · local vs. cloud hosting
 
-#### Key Topics:
-- Naive RAG vs Agentic RAG
-- Agentic RAG Components
-- Semantic Cache implementation
-- Knowledge Graphs for structured reasoning
-- GraphRAG at scale
-- Text-to-Cypher conversion with LLMs
-- RAG vs Knowledge Graph Evaluation
 
-#### Notebooks:
+---
 
-Upload Data to Qdrant: [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/hamzafarooq/multi-agent-course/blob/main/Module_1/Agentic_RAG/Upload_data_to_Qdrant_Notebook.ipynb)
+### Module 3 — Agentic RAG, Semantic Cache & Knowledge Graphs
 
-Agentic RAG: [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/hamzafarooq/multi-agent-course/blob/main/Module_1/Agentic_RAG/Agentic_RAG_Notebook.ipynb)
+Treat retrieval as a tool the agent *decides* to use — not a static bolt-on. Add a semantic cache for real latency/cost wins, and contrast vector RAG with Knowledge Graphs for structured reasoning.
 
-Semantic Cache: [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/hamzafarooq/multi-agent-course/blob/main/Module_3/Semantic_Cache/Semantic_cache_from_scratch.ipynb)
+**Key topics:** naive RAG vs. agentic RAG · query routing & multi-hop retrieval · semantic caching · Knowledge Graphs & GraphRAG · text-to-Cypher · RAG vs. KG evaluation
 
-Knowledge Graphs Basic Version: [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/hamzafarooq/multi-agent-course/blob/main/Module_4/Knowledge_Graphs/Knowledge_Graphs_Basic_Version.ipynb)
 
-Knowledge Graphs Advanced Version: [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/hamzafarooq/multi-agent-course/blob/main/Module_4/Knowledge_Graphs/Knowledge_Graphs_Advanced_Version.ipynb)
-
-**📊 Featured Project: RAG vs Knowledge Graph Comparison Framework**
-
-A production-ready Streamlit application that objectively compares RAG and Knowledge Graph approaches using LLM-based evaluation. Includes interactive graph visualizations showing the exact data path used for each answer.
-
-[View Full Documentation →](Module_4_Knowledge_Graphs/)
-
-**Interactive Demo:**
+**📊 Featured project: RAG vs. Knowledge Graph comparison framework** — a Streamlit app that objectively compares RAG and KG approaches with LLM-based evaluation and interactive graph visualizations.
+[View documentation →](modules/Module_3_Agentic_RAG/Knowledge_Graphs/README.md)
 
 ```bash
-cd Module_4_Knowledge_Graphs
-python setup.py  # One-time setup
+cd modules/Module_3_Agentic_RAG/Knowledge_Graphs
+python setup.py      # one-time setup
 streamlit run app.py
 ```
 
 ---
 
-### Part 3: Acting & Control
+### Module 4 — Voice Agents
 
-**Intelligence Becomes Action**
+Ship an agent that talks — and survives real conversation.
 
-Uses ReAct loops and Guardrails to ensure agents reason, act, and coordinate safely.
+**Key topics:** the voice stack (STT → LLM → TTS) · turn-taking & end-of-turn detection · latency budgeting, streaming & barge-in · tool calling inside a voice loop · provider landscape (Deepgram, ElevenLabs, OpenAI Realtime, Vapi, Retell)
 
-#### Key Topics:
-- Building LLM Agents from scratch
-- ReAct (Reasoning + Acting) patterns
-- Multi-Agent Orchestration with ADK & MCP
-- AI Agent Frameworks (smolagents, AutoGen, CrewAI)
-- Production Guardrails (Llama Guard)
-- Safety and control mechanisms
-
-#### Notebooks:
-
-AgentPro Starter Code: [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/hamzafarooq/multi-agent-course/blob/main/Module_5/Agents/AgentPro%20Starter%20Code.ipynb)
-
-Agent Pro from Scratch [old version]: [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/hamzafarooq/multi-agent-course/blob/main/Module_5/Agents/Agent%20Pro%20from%20Scratch%20%5Bold%20version%5D.ipynb)
-
-Agent Pro ReAct: [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/hamzafarooq/multi-agent-course/blob/main/Module_5/Agents/Agent%20Pro%20ReAct.ipynb)
-
-Smol Agents: [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/hamzafarooq/multi-agent-course/blob/main/Module_5/Agents/Smol%20Agents.ipynb)
-
-ADK A2A MCP: [![GitHub Folder](https://img.shields.io/badge/View%20on-GitHub-blue?logo=github)](https://github.com/hamzafarooq/multi-agent-course/tree/main/Module_6/A2A%20ADK%20MCP)
-
-MCP (non-adk): [![GitHub Folder](https://img.shields.io/badge/View%20on-GitHub-blue?logo=github)](https://github.com/hamzafarooq/multi-agent-course/tree/main/Module_6/MCP%20(non-adk))
-
-Llama Guard: [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/hamzafarooq/multi-agent-course/blob/main/Module_6/Guardrails/Llama%20Guard.ipynb)
 
 ---
 
-### Part 4: Evals as Engineering Discipline
+### Module 5 — Multi-Agent Systems (MCP · A2A · ADK)
 
-**Closing the Loop**
+When many agents beat one — and the more common case where they don't. Build a coordinated multi-agent system and learn the protocol layer underneath the marketing.
 
-Validates the entire stack by measuring and optimizing efficiency, reasoning quality, and safety.
+**Key topics:** one agent vs. many · topologies (orchestrator-worker, hierarchical, swarm, handoff) · **MCP** (tools), **A2A** (agent-to-agent), **ADK** (Google's framework) · shared memory & message passing
 
-#### Key Topics:
-- LLM-based evaluation frameworks
-- RAG vs Knowledge Graph comparison methodologies
-- Safety evaluation and jailbreak testing
-- Production monitoring and validation
-- Performance benchmarking
 
-#### Notebooks:
-
-Ollama jailbreak: [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/hamzafarooq/multi-agent-course/blob/main/Module_6/Ollama/Mistral%20Llama%203.1%20and%20Llama%203.2%20jailbreak.ipynb)
 
 ---
 
-## Technology Stack
+### Module 6 — Evaluation & Guardrails
 
-This course uses the following tools and services:
+Close the loop: ship with measurable quality and safety, not hope.
 
-| Area                  | Tools / Frameworks                                   |
-|-----------------------|------------------------------------------------------|
-| **LLM Access**        | Ares API (via Traversaal.ai), OpenAI GPT-4o-mini     |
-| **Agent Frameworks**  | ADK, A2A, CrewAI                                     |
-| **Vector Search**     | FAISS (Colab), OpenSearch (optional)                 |
-| **Graph Databases**   | Neo4j Aura, NetworkX                                 |
-| **Memory & Caching**  | Redis Cloud (recommended setup)                      |
-| **Web Interfaces**    | Streamlit, FastAPI                                   |
-| **Visualizations**    | Pyvis, Plotly, Interactive Graph Rendering           |
-| **Notebooks**         | Google Colab Pro (preferred), Jupyter (optional)     |
-| **Deployments (Optional)** | AWS Lambda, Step Functions, FastAPI             |
-| **Language**          | Python 3.10+                                         |
+**Key topics:** input/output guardrails · prompt-injection & jailbreak defense (Llama Guard) · trajectory eval vs. outcome eval · LLM-as-judge (and how to validate the judge) · golden task sets
 
-> You don't need to pre-install anything locally.
-> All key dependencies are included in each notebook.
-g
+
 ---
 
 ## What You'll Build
 
-This course goes beyond theory. You'll build production-ready systems across four key phases:
+This course goes beyond theory. Across the six modules you'll ship:
 
-### Phase 1 & 2: Building the Performance & Memory Engine
-- **Optimized LLM Deployments** with quantization and KV caching
-- **Agentic RAG Systems** with advanced retrieval and semantic caching
-- **Knowledge Graph Applications** with RAG vs KG evaluation framework
-- **Hybrid Memory Models** combining structured and unstructured data
-
-### Phase 3 & 4: From Intelligence to Validated Action
-- **ReAct Agent Systems** that reason and act autonomously
-- **Multi-Agent Workflows** with ADK, A2A, and CrewAI orchestration
-- **Production Guardrails** for safe AI deployment (Llama Guard)
-- **LLM-based Evaluators** for comprehensive system validation
-- **Interactive Dashboards** using Streamlit for real-time demos
+- An **optimized LLM deployment** with quantization, KV caching, and speculative decoding
+- An **agentic RAG pipeline** with a semantic cache layer
+- A **Knowledge Graph application** with a RAG-vs-KG evaluation framework
+- A **ReAct agent** built from scratch
+- A **voice agent** that handles real conversation
+- A **multi-agent system** with ADK/A2A/MCP coordination
+- An **evaluation + guardrail harness** that validates the whole stack
 
 Each module includes hands-on projects you can showcase in your portfolio.
 
 ---
 
-## Student Feedback (Beta Cohort)
+## About the Course
 
-> "Finally a course that moves past theory and teaches **how to build AI systems that work**."
-> "Everything was practical — I now know how to apply RAG and agents in real products."
+**Agent Engineering Bootcamp: Developers Edition** · ⭐ 4.8/5 (107 reviews)
 
----
+**Instructor:** [Hamza Farooq](https://www.linkedin.com/in/hamzafarooq/) — Founder · Ex-Google · Professor at UCLA & UMN
 
-## Ready to Master Multi-Agent Systems?
+A hands-on, build-every-week bootcamp for engineers who already write Python and have touched LLM APIs. Six live 2-hour sessions; you leave with the **judgment** that separates engineers who ship agents from engineers who follow tutorials.
 
-<a href="https://maven.com/boring-bot/advanced-llm?promoCode=200OFF">
-  <img src="Module_4_Knowledge_Graphs/course_img.png" alt="Agent Engineering Bootcamp" width="600">
-</a>
-
-### Agent Engineering Bootcamp: Developers Edition
-
-**Rating:** ⭐⭐⭐⭐⭐ 4.8/5 (96 reviews)
-
-**Your Instructor:** Hamza Farooq
-*Founder | Ex-Google | Professor at UCLA & UMN*
-
-**What You'll Learn:**
-- ⚡ Optimize LLM deployment with quantization, KV caching, and speculative decoding
-- 🧠 Build hybrid memory systems combining RAG and Knowledge Graphs
-- 🤖 Create ReAct agents with multi-agent orchestration (ADK, MCP)
-- 🛡️ Implement production guardrails and safety mechanisms
-- 📊 Master evaluation frameworks that validate efficiency, reasoning, and safety
-- 💼 Deploy production-ready AI systems with modern tooling
-
-**Course Highlights:**
-- 4-part structured curriculum: From Efficiency to Action
-- 6 weeks of intensive, hands-on learning
-- Live sessions with industry expert (Ex-Google, UCLA & UMN Professor)
-- Production-ready code and templates for every phase
-- Real-world case studies and architectures
-- Certificate of completion
-
-### [🎓 Enroll Now - Save $200 with code 200OFF →](https://maven.com/boring-bot/advanced-llm?promoCode=200OFF)
 
 ---
 
-## Let's Build AI Systems That Survive the Real World
-
-This repository is for enrolled students only and contains all code, exercises, and project materials.
-
-**Your instructor**: [Hamza Farooq](https://www.linkedin.com/in/hamzafarooq/)
-**Created by** [boring-bot](https://maven.com/boring-bot)
-
-*Building the future of AI, one agent at a time.*
+*Created by [boring-bot](https://maven.com/boring-bot). Building the future of AI, one agent at a time.*
