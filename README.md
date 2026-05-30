@@ -61,6 +61,19 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
+### Clone via Claude Code chat
+
+You can clone this repo directly from the Claude Code chat interface without leaving your conversation:
+
+1. Open [Claude Code](https://claude.ai/code) in your browser (or launch `claude` in your terminal)
+2. In the chat, type:
+   ```
+   Clone https://github.com/hamzafarooq/multi-agent-course.git and open it
+   ```
+3. Claude will clone the repo into a directory of your choice, set up the project, and open it — ready for you to start learning.
+
+From there, type `/start` to begin the AI-guided onboarding.
+
 ### Recommended resource
 
 To go deeper on building LLM applications, see the book
