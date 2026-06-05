@@ -164,6 +164,20 @@ Each module includes hands-on projects you can showcase in your portfolio.
 
 ---
 
+## Full Stack Projects
+
+End-to-end, build-along projects that tie the course concepts together.
+
+### Sprint Zero — a multi-agent product team in your terminal
+
+Point it at a product, answer three questions, and get back a full spec set plus a running app. A Claude Code kit that orchestrates scoping, research, specs, parallel engineering, and QA sub-agents.
+
+[![GitHub Folder](https://img.shields.io/badge/View%20on-GitHub-blue?logo=github)](https://github.com/hamzafarooq/multi-agent-course/tree/main/Full_Stack_Projects/Sprint_Zero)
+
+Built by [Yousuf Alvi](https://github.com/yousuf-alvi) and [Hamza Farooq](https://www.linkedin.com/in/hamzafarooq/).
+
+---
+
 ## About the Course
 
 **Agent Engineering Bootcamp: Developers Edition** · ⭐ 4.8/5 (107 reviews)
