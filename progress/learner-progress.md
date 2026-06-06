@@ -16,9 +16,9 @@
 | 01 — Agents, ReAct & the Harness | not started | |
 | 02 — Skills, Subagents & Multi-Agent Orchestration | not started | |
 | 03 — Agentic RAG, Semantic Cache & Knowledge Graphs | not started | |
-| 04 — Voice Agents | not started | |
+| 04 — Evaluation & Guardrails | not started | |
 | 05 — Multi-Agent Systems (MCP · A2A · ADK) | not started | |
-| 06 — Evaluation & Guardrails | not started | |
+| 06 — Voice Agents & LLM Optimization | not started | |
 
 Status values: not started · in progress · completed · needs review
 

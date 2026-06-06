@@ -17,9 +17,9 @@ This repo contains all the code, notebooks, exercises, and project materials use
 1. [Module 1 — The Agent Loop, ReAct & the Harness](#module-1--the-agent-loop-react--the-harness)
 2. [Module 2 — Skills, Subagents & Multi-Agent Orchestration](#module-2--skills-subagents--multi-agent-orchestration)
 3. [Module 3 — Agentic RAG, Semantic Cache & Knowledge Graphs](#module-3--agentic-rag-semantic-cache--knowledge-graphs)
-4. [Module 4 — Voice Agents](#module-4--voice-agents)
+4. [Module 4 — Evaluation & Guardrails](#module-4--evaluation--guardrails)
 5. [Module 5 — Multi-Agent Systems (MCP · A2A · ADK)](#module-5--multi-agent-systems-mcp--a2a--adk)
-6. [Module 6 — Evaluation & Guardrails](#module-6--evaluation--guardrails)
+6. [Module 6 — Voice Agents & LLM Optimization](#module-6--voice-agents--llm-optimization)
 
 **Also on this page:** [How to use this repo](#how-to-use-this-repo) · [Technology stack](#technology-stack) · [What you'll build](#what-youll-build)
 
@@ -122,11 +122,11 @@ streamlit run app.py
 
 ---
 
-### Module 4 — Voice Agents
+### Module 4 — Evaluation & Guardrails
 
-Ship an agent that talks — and survives real conversation.
+Close the loop: ship with measurable quality and safety, not hope.
 
-**Key topics:** the voice stack (STT → LLM → TTS) · turn-taking & end-of-turn detection · latency budgeting, streaming & barge-in · tool calling inside a voice loop · provider landscape (Deepgram, ElevenLabs, OpenAI Realtime, Vapi, Retell)
+**Key topics:** input/output guardrails · prompt-injection & jailbreak defense (Llama Guard) · trajectory eval vs. outcome eval · LLM-as-judge (and how to validate the judge) · golden task sets
 
 
 ---
@@ -141,11 +141,11 @@ When many agents beat one — and the more common case where they don't. Build a
 
 ---
 
-### Module 6 — Evaluation & Guardrails
+### Module 6 — Voice Agents & LLM Optimization
 
-Close the loop: ship with measurable quality and safety, not hope.
+Ship an agent that talks — and survives real conversation — then make the inference behind it fast and cheap enough to run.
 
-**Key topics:** input/output guardrails · prompt-injection & jailbreak defense (Llama Guard) · trajectory eval vs. outcome eval · LLM-as-judge (and how to validate the judge) · golden task sets
+**Key topics:** the voice stack (STT → LLM → TTS) · turn-taking & end-of-turn detection · latency budgeting, streaming & barge-in · tool calling inside a voice loop · provider landscape (Deepgram, ElevenLabs, OpenAI Realtime, Vapi, Retell) · quantization (4-bit / 8-bit, FP4 vs. NF4) · KV caching · speculative decoding · inference metrics (TTFT, ITL, throughput)
 
 
 ---

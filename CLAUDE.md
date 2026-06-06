@@ -32,9 +32,9 @@ The course runs in this order — six modules, "from efficiency to action":
 1. `Module_1_Agent_Loop` — The agent loop, ReAct, and what a production harness adds on top of a bare loop.
 2. `Module_2_Skills_Sub_Agents` — Skills, subagents, and the orchestrator pattern for multi-agent systems; defining subagents in `.claude/agents/`, specialization, failure modes, and the Sprint Zero capstone.
 3. `Module_3_Agentic_RAG` — Agentic RAG, semantic caching, and Knowledge Graphs for hybrid memory.
-4. `Module_4_Voice_Agents` — Voice agents: the STT → LLM → TTS stack, turn-taking, and latency budgeting.
+4. `Module_4_AI_Evaluation` — Production guardrails (Llama Guard) and trajectory-vs-outcome evaluation.
 5. `Module_5_Multi_Agents` — Multi-agent coordination and the protocol layer: MCP, A2A, and ADK.
-6. `Module_6_AI_Evaluation` — Production guardrails (Llama Guard) and trajectory-vs-outcome evaluation.
+6. `Module_6_Voice_Agents_and_Optimization` — Voice agents (STT → LLM → TTS, turn-taking, latency budgeting) and LLM optimization (quantization, KV caching, speculative decoding).
 
 
 **Module folder structure.** Each module lives under `modules/Module_N_Name/`. The five
