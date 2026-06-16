@@ -1,15 +1,37 @@
-# Sprint Zero
+<div align="center">
 
-> **Part of the [Enterprise RAG & Multi-Agent Applications](../../README.md) course** — a full-stack, multi-agent capstone project.
-> Built by **[Yousuf Alvi](https://github.com/yousuf-alvi)** and **[Hamza Farooq](https://www.linkedin.com/in/hamzafarooq/)**.
+# 🚀 Sprint Zero
 
-**Point it at a product. Answer three questions. Get back a complete spec set and a working app.**
+### Point it at a product. Answer three questions. Get back a complete spec set and a working app.
 
-Sprint Zero is a Claude Code kit that gives a PM or founder a full sub-agent product team on their laptop. You bring the idea and a reference URL. Sprint Zero handles scoping, research, specs, parallel engineering, and QA — and hands back a running product.
+[![Built with Claude](https://img.shields.io/badge/Built%20with-Claude%20Code-D97757?style=for-the-badge&logo=anthropic&logoColor=white)](https://claude.com/claude-code)
+&nbsp;
+![Zero setup](https://img.shields.io/badge/Default-Zero%20setup-2EA043?style=for-the-badge)
+&nbsp;
+![Time](https://img.shields.io/badge/MVP-~10–20%20min-6E40C9?style=for-the-badge)
+&nbsp;
+![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
+
+**Capstone of [Module 2 — Skills, Subagents & Orchestration](../../README.md)** in the Agent Engineering Bootcamp.
+Built by **[Yousuf Alvi](https://github.com/yousuf-alvi)** · **[Hamza Farooq](https://www.linkedin.com/in/hamzafarooq/)**
+
+[**Quick start**](#-quick-start) · [**How it flows**](#how-it-flows) · [**The agent team**](#the-agent-team) · [**Build options**](#build-configuration) · [**Demo mode**](#sprint-zero----present-mode)
+
+</div>
 
 ---
 
-## The problem
+```
+        ┌─ 📋 spec set ─┐        ┌─ ⚙️ backend ─┐
+/sprint-zero <url>  ──▶  scoping ──▶  research ──▶  PRD/contract  ──▶  ┤             ├──▶  ✅ QA  ──▶  🟢 running app
+                                                                       └─ 🎨 frontend ┘
+```
+
+Sprint Zero is a Claude Code kit that gives a PM or founder a full sub-agent product team on their laptop. You bring the idea and a reference URL. Sprint Zero handles scoping, research, specs, parallel engineering, and QA — and hands back a running product. The default build runs **straight after clone with no account, no keys, and no `.env`.**
+
+---
+
+## 🧩 The problem
 
 Validating a product idea today looks something like this:
 
@@ -29,11 +51,13 @@ Sprint Zero collapses that cycle into one terminal session. The PM stays in the 
 
 One command. One reference URL. Three scoping answers. You get:
 
-- A full spec set in `docs/` — scope, research brief, PRD, decisions, user stories, API contract
-- A working build in `server/` and `client/` — Express + Supabase API, React frontend, real auth
-- Playwright-driven QA covering the auth dance and the core product loop
+| | What lands |
+|---|---|
+| 📋 **A full spec set** | `docs/` — scope, research brief, PRD, decisions, user stories, API contract |
+| 🛠️ **A working build** | In the stack you pick — default is a React UI on an Express API with data + auth in local SQLite, so it runs immediately with no account or keys |
+| ✅ **QA that matches the build** | Playwright auth dance + core loop for web apps · API tests for services · command runs for CLIs |
 
-For a `MVP` scope, expect ten to twenty minutes end-to-end.
+⏱️ For an `MVP` scope, expect **ten to twenty minutes** end-to-end.
 
 ---
 
@@ -59,17 +83,29 @@ One command drives the whole flow. You watch it happen in the Claude Code termin
 
 ---
 
-## The three scope levels
+## 🎚️ The three scope levels
 
 You pick one when you answer the scoping question. The level is stored in `docs/scope.md` and calibrates every agent downstream.
 
 | Level       | What it produces                                   | Good for                        |
 | ----------- | -------------------------------------------------- | ------------------------------- |
 | `clickable` | Mock backend, fake data, no auth                   | Pitching and flow reviews       |
-| `MVP`       | Real Supabase, real auth, one core loop end-to-end | Showing the idea actually works |
+| `MVP`       | Real data + real auth, one core loop end-to-end    | Showing the idea actually works |
 | `Prod`      | MVP plus error states, validation, loading states  | Handing to 5–10 real users      |
 
 `MVP` is the main demo path for v1. `clickable` is an escape hatch for very early ideation.
+
+## Build configuration
+
+Beyond the scope level, scoping captures three orthogonal choices (all with sensible defaults, so you can ignore them and still get a working app). They're recorded in `docs/scope.md` and the full catalog lives in [.claude/stacks.md](.claude/stacks.md).
+
+| Choice            | Options                                                        | Default      |
+| ----------------- | ------------------------------------------------------------- | ------------ |
+| **Project type**  | `web-app` · `api-service` · `cli-tool`                        | `web-app`    |
+| **Stack profile** | `node-react` (Express+React) · `nextjs` · `python-react` (FastAPI+React) | `node-react` |
+| **Data layer**    | `local` (SQLite, zero setup) · `supabase` (hosted Postgres + auth) | `local`   |
+
+The default — `web-app` + `node-react` + `local` — **clones and runs with no external account, no keys, and no `.env`.** Pick `supabase` when you want a real hosted Postgres and auth.
 
 ---
 
@@ -97,10 +133,10 @@ flowchart TD
     Main -->|delivery summary| User
 ```
 
-- **tech-lead** reads the spec set and returns a structured build brief. It does not write code.
-- **backend-engineer** builds Express + Supabase in `server/`.
-- **frontend-engineer** builds React + Vite + Supabase Auth in `client/`.
-- **qa-engineer** runs Playwright against the live app — auth dance plus the core loop.
+- **tech-lead** reads the spec set, resolves the build configuration, and returns a structured build brief. It does not write code.
+- **backend-engineer** builds the API (Express / FastAPI / Next.js) — or a CLI — with data and auth per the chosen data layer.
+- **frontend-engineer** builds the UI (React/Vite or Next.js pages) for web apps. Skipped for API services and CLIs.
+- **qa-engineer** validates the live build — a Playwright auth dance + core loop for web apps, API tests for services, command runs for CLIs.
 
 Backend and frontend never talk to each other. The API contract is the shared interface.
 
@@ -110,7 +146,7 @@ Claude Code does not permit sub-agents to spawn other sub-agents. `tech-lead` co
 
 ---
 
-## The spec pipeline
+## 📋 The spec pipeline
 
 Before any code runs, Sprint Zero writes six documents to `docs/`. Each feeds the next.
 
@@ -139,7 +175,7 @@ The pipeline is resumable. Each step checks whether its output file already exis
 
 ---
 
-## The API contract is law
+## 📜 The API contract is law
 
 ```mermaid
 flowchart TD
@@ -153,59 +189,41 @@ Endpoint paths, request shapes, response shapes, status codes — all defined in
 
 ---
 
-## The stack (fixed)
+## 🧰 The stack
 
-Not configurable in v1. Picking one stack is what makes Sprint Zero actually ship.
+Pick a stack profile at scoping time, or take the default. Each profile is a small, opinionated set of well-trodden technologies — the kit stays shippable by having a fixed catalog, not by locking you to one option. Full details in [.claude/stacks.md](.claude/stacks.md).
 
-| Layer           | Technology                          |
-| --------------- | ----------------------------------- |
-| Frontend        | React + Vite                        |
-| Backend         | Express (Node.js)                   |
-| Database + Auth | Supabase (Postgres + Supabase Auth) |
-| Testing         | Playwright via Playwright MCP       |
+| Stack profile        | Frontend       | Backend            | Default ports        |
+| -------------------- | -------------- | ------------------ | -------------------- |
+| `node-react` *(default)* | React + Vite | Express (Node.js) | 5173 / 3001          |
+| `nextjs`             | Next.js (App Router) — UI + API in one app | 3000          |
+| `python-react`       | React + Vite   | FastAPI (Python)   | 5173 / 8000          |
 
-You bring your own Supabase project. Free tier is fine.
+Data and auth come from the **data layer**: `local` (SQLite + a self-issued JWT — nothing to set up) or `supabase` (hosted Postgres + Supabase Auth, free tier fine). Testing is Playwright via Playwright MCP for web apps, HTTP tests for API services, and command runs for CLIs.
 
 ---
 
-## Quick start
+## 🚀 Quick start
+
+> **TL;DR (default, zero-setup):** `git clone https://github.com/yousuf-labs/sprint-zero && cd sprint-zero && claude` → then `/sprint-zero https://twenty.com`. No account, no keys.
 
 ### 1. Prerequisites
 
-- [Node.js](https://nodejs.org) 18+
+- [Node.js](https://nodejs.org) 18+ (and Python 3.11+ if you pick the `python-react` stack)
 - [Claude Code](https://claude.com/claude-code) installed and authenticated
-- A free [Supabase](https://supabase.com) account
-- Playwright MCP registered in Claude Code (so QA can drive the browser). If `claude mcp list` does not show `playwright`, install it and register it under that name.
+- Playwright MCP registered in Claude Code (so QA can drive the browser for web apps). If `claude mcp list` does not show `playwright`, install it and register it under that name.
+- **Nothing else for the default `local` data layer** — no account, no keys. A free [Supabase](https://supabase.com) account is needed only if you choose the `supabase` data layer (see below).
 
-### 2. Create a Supabase project
-
-Go to [supabase.com](https://supabase.com), click **New project**, pick any name and region, and wait for it to provision. Then go to **Authentication → Providers → Email** and confirm it is enabled.
-
-### 3. Collect four credentials
-
-From your Supabase project's **Settings** page:
-
-| Where                                                                   | Value                      | Goes into `.env` as        |
-| ----------------------------------------------------------------------- | -------------------------- | -------------------------- |
-| Settings → API → Project URL                                            | `https://xxxx.supabase.co` | `SUPABASE_URL`             |
-| Settings → API Keys → Publishable key                                   | `sb_publishable_...`       | `SUPABASE_PUBLISHABLE_KEY` |
-| Settings → API Keys → Secret key (click Reveal)                         | `sb_secret_...`            | `SUPABASE_SECRET_KEY`      |
-| Settings → Database → Connection string → URI (Session mode, port 5432) | `postgresql://postgres...` | `DATABASE_URL`             |
-
-Use the new **API Keys** tab in Supabase, not the **Legacy** tab — the legacy tab still shows "anon" and "service*role", but Sprint Zero expects the new `sb_publishable*...`/`sb*secret*...` format.
-
-`DATABASE_URL` is the direct Postgres connection string. Sprint Zero uses it to create tables automatically — no manual SQL pasting.
-
-### 4. Clone and configure
+### 2. Clone
 
 ```bash
 git clone https://github.com/yousuf-labs/sprint-zero
 cd sprint-zero
-cp .env.example .env
-# open .env and paste in the four values from step 3
 ```
 
-### 5. Run Sprint Zero
+That's the whole setup for the default (`local`) data layer — no `.env` to fill in.
+
+### 3. Run Sprint Zero
 
 ```bash
 claude
@@ -217,12 +235,33 @@ Then in Claude Code:
 /sprint-zero https://twenty.com/ https://github.com/twentyhq/twenty
 ```
 
-Pass any product URL you want to reference (a landing page, an open-source tool, a competitor). Sprint Zero will ask you three questions in one message — answer in a paragraph, no formatting needed:
+Pass any product URL you want to reference (a landing page, an open-source tool, a competitor). Sprint Zero will ask you a few questions in one message — answer in a paragraph, no formatting needed, and skip anything you don't care about to take the default:
 
 1. **Project name** — a short slug for this build
 2. **What level?** — `clickable`, `MVP`, or `Prod`
 3. **What's the core loop?** — the one user flow that must work
-4. **Anything to exclude?** — features you don't want
+4. **What kind of project?** — `web-app`, `api-service`, or `cli-tool`
+5. **Which stack?** — `node-react`, `nextjs`, or `python-react`
+6. **Where does data live?** — `local` (zero setup) or `supabase`
+7. **Anything to exclude?** — features you don't want
+
+### Optional — using the `supabase` data layer
+
+If you answer `supabase` for the data layer, create a free project first and provide four credentials in a `.env` (the default `local` layer skips all of this):
+
+```bash
+cp .env.example .env
+# then paste the four values below
+```
+
+| Where                                                                   | Value                      | Goes into `.env` as        |
+| ----------------------------------------------------------------------- | -------------------------- | -------------------------- |
+| Settings → API → Project URL                                            | `https://xxxx.supabase.co` | `SUPABASE_URL`             |
+| Settings → API Keys → Publishable key                                   | `sb_publishable_...`       | `SUPABASE_PUBLISHABLE_KEY` |
+| Settings → API Keys → Secret key (click Reveal)                         | `sb_secret_...`            | `SUPABASE_SECRET_KEY`      |
+| Settings → Database → Connection string → URI (Session mode, port 5432) | `postgresql://postgres...` | `DATABASE_URL`             |
+
+Use the new **API Keys** tab, not **Legacy**. Enable **Authentication → Providers → Email**. `DATABASE_URL` lets Sprint Zero create tables automatically — no manual SQL.
 
 #### Example answer — a mini CRM referenced from [twenty.com](https://twenty.com/)
 
@@ -239,64 +278,50 @@ Notice how the excludes list is long and specific. That's the point — naming w
 
 Sprint Zero handles the rest.
 
-### 6. The app launches itself
+### The app launches itself
 
-Once QA passes, `/sprint-zero` automatically:
+Once QA passes, `/sprint-zero` automatically installs dependencies, seeds demo data, starts the build in the background, and opens it in your browser (cross-platform — `open`/`xdg-open`/`wslview`/`start`). The exact ports follow the stack profile (e.g. `node-react`: frontend 5173, backend 3001; `python-react`: backend 8000; `nextjs`: one app on 3000). For the `local` data layer there are no keys to wire — the seed creates a SQLite file and a demo user, and the launch summary prints the login. For `supabase`, it also wires the frontend's `VITE_` env from your root `.env`.
 
-1. Runs `npm install` in `server/` and `client/` (skipped if `node_modules/` already exists)
-2. Writes `client/.env` with `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` pulled from the root `.env`
-3. Runs `node seed.js` to create tables and demo data
-4. Starts the backend on [http://localhost:3001](http://localhost:3001) in the background
-5. Starts the frontend on [http://localhost:5173](http://localhost:5173) in the background
-6. Prints the demo user's email and password
+You'll land on a polished marketing page — click **Log in** and use the credentials from the launch summary to enter the product. The summary prints the exact commands to stop the servers for your build.
 
-Open [http://localhost:5173](http://localhost:5173). You'll land on a polished marketing page — click **Log in** in the top nav and use the credentials from the launch summary to enter the product.
-
-To stop the servers when you're done:
-
-```bash
-pkill -f "node index.js" && pkill -f "vite"
-```
-
-Pass `--no-launch` to `/sprint-zero` if you'd rather wire it up by hand — see the next section.
+Pass `--no-launch` to `/sprint-zero` if you'd rather wire it up by hand.
 
 ---
 
 ## Start the app manually
 
-You can skip auto-launch with `/sprint-zero <url> --no-launch`, or run these steps any time afterward to restart things.
+You can skip auto-launch with `/sprint-zero <url> --no-launch`, or run these steps any time afterward. Commands follow your stack profile — the `node-react` + `local` default looks like this:
 
 ```bash
 # Terminal 1 — backend
 cd server
 npm install       # first run only
-node seed.js      # creates tables + demo data (first run only)
+node seed.js      # creates the SQLite tables + demo data (first run only)
 node index.js     # API on http://localhost:3001
 
 # Terminal 2 — frontend
 cd client
-npm install              # first run only
-cp .env.example .env     # first run only — then paste VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY
-npm run dev              # app on http://localhost:5173
+npm install       # first run only
+npm run dev       # app on http://localhost:5173
 ```
 
-The seed script prints the demo user's email and password. Use those to log in at [http://localhost:5173](http://localhost:5173).
+The seed script prints the demo user's email and password. Use those to log in.
 
-> The frontend needs its own `.env` with `VITE_`-prefixed variables because Vite only exposes env vars with that prefix to the browser. Reuse the same `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` values from the root `.env`.
+> With the `local` data layer the frontend needs no env file — it talks to the backend's own `/auth` endpoints. For `supabase`, copy `client/.env.example` to `client/.env` and set `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` (Vite only exposes `VITE_`-prefixed vars to the browser). For `python-react` the backend is `uvicorn main:app --port 8000`; for `nextjs` it's a single `npm run dev` on port 3000.
 
 ---
 
-## What `node seed.js` does
+## What the seed script does
 
 ```mermaid
 flowchart LR
-    A[node seed.js] --> B[Create tables<br/>via migrate.js]
-    B --> C[Create demo user<br/>via Supabase admin]
+    A[seed] --> B[Create tables<br/>SQLite, or migrate for Supabase]
+    B --> C[Create demo user<br/>local hash, or Supabase admin]
     C --> D[Insert seed rows]
     D --> E[Print credentials]
 ```
 
-It is idempotent. Running it twice is safe. Tables are created with `IF NOT EXISTS`. The demo user is checked before creation. Seed rows are cleared and re-inserted each run.
+It is idempotent. Running it twice is safe. Tables are created with `IF NOT EXISTS`. The demo user is checked before creation. Seed rows are cleared and re-inserted each run. For the `local` data layer this writes a SQLite file with no external calls; for `supabase` it migrates the schema and creates the user via the admin client.
 
 ---
 
@@ -313,6 +338,7 @@ sprint-zero/
 │   │   ├── decisions-writer.md        → decisions.md
 │   │   ├── user-story-writer.md       → user-stories.md
 │   │   └── api-contract-writer.md     → api-contract.md
+│   ├── stacks.md                   ← build-configuration catalog (read by every agent)
 │   └── agents/                      ← sub-agents (the build layer)
 │       ├── tech-lead.md
 │       ├── backend-engineer.md
@@ -320,9 +346,8 @@ sprint-zero/
 │       └── qa-engineer.md
 ├── docs/                            ← generated specs (gitignored; filled at runtime)
 ├── examples/                        ← worked examples (Mini Twenty lands here in Phase 5)
-├── server/                          ← Express + Supabase (gitignored; created at runtime)
-├── client/                          ← React + Vite (gitignored; created at runtime)
-├── .env.example                     ← copy to .env and fill in
+├── server/ + client/  (or app/, or cli/)  ← the build, per stack profile (gitignored; created at runtime)
+├── .env.example                     ← only for the supabase data layer (local needs none)
 ├── .gitignore
 ├── CLAUDE.md                        ← project instructions for Claude Code
 ├── LICENSE
@@ -330,7 +355,7 @@ sprint-zero/
 └── README.md
 ```
 
-On a fresh clone you'll only see the committed items. `docs/`, `server/`, and `client/` are populated when `/sprint-zero` runs.
+On a fresh clone you'll only see the committed items. The spec docs and the build directories are populated when `/sprint-zero` runs.
 
 ---
 
@@ -398,17 +423,17 @@ cd presenter && npm install && npm run build && npm start
 
 ---
 
-## Troubleshooting
+## 🩺 Troubleshooting
 
-**The page shows "Failed to load contacts" (or similar).** Database tables aren't created yet. Run `cd server && node seed.js`.
+**The page shows "Failed to load data" (or similar).** Tables aren't created yet. Re-run the seed command for your build (e.g. `cd server && node seed.js`).
 
-**The server crashes on startup.** `server/.env` is missing or incomplete. The error message will name the missing key.
+**The server crashes on startup (supabase only).** `server/.env` is missing or incomplete. The error message names the missing key. On the `local` data layer there is no `.env` to misconfigure.
 
-**Every API call returns 401.** New Supabase projects issue ES256 tokens, not RS256. `middleware/auth.js` must accept both, and the JWKS URI must be `{SUPABASE_URL}/auth/v1/.well-known/jwks.json` (not `/auth/v1/jwks`).
+**Every API call returns 401 (supabase only).** New Supabase projects issue ES256 tokens, not RS256. `middleware/auth.js` must accept both, and the JWKS URI must be `{SUPABASE_URL}/auth/v1/.well-known/jwks.json` (not `/auth/v1/jwks`). On `local`, a 401 usually means the stored JWT is missing or the dev secret changed — log in again.
 
-**QA didn't run the browser tests.** The Playwright MCP server isn't registered under the name `playwright`. Run `claude mcp list` to check, then register it and re-spawn `qa-engineer`.
+**QA didn't run the browser tests.** Either the Playwright MCP server isn't registered under the name `playwright` (run `claude mcp list`, register it, re-spawn `qa-engineer`), or the project type is `api-service`/`cli-tool`, which have no browser tests by design.
 
-**`node seed.js` says "relation does not exist".** `DATABASE_URL` is wrong. Get it from Settings → Database → Connection string → URI, Session mode, port 5432. It looks like `postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres`.
+**Seed says "relation/table does not exist".** On `local`, just re-run the seed — it creates the SQLite schema. On `supabase`, `DATABASE_URL` is wrong: get it from Settings → Database → Connection string → URI, Session mode, port 5432 (`postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres`).
 
 ---
 
@@ -416,12 +441,12 @@ cd presenter && npm install && npm run build && npm start
 
 Deliberate cuts, tracked in [plan.md](plan.md) as v2 candidates:
 
-- Multiple stacks (Next.js, Python/Django, Vue)
+- More stacks beyond the three profiles (e.g. Vue, Django, Go) — the catalog in [.claude/stacks.md](.claude/stacks.md) is where you'd add one
 - Deployment automation — Sprint Zero produces code, you deploy it
 - Multi-user collaboration in the generated product
 - Design system integration — the generated UI is utilitarian
 - Payment / Stripe integration
-- File upload beyond what Supabase gives you out of the box
+- File upload beyond what the chosen data layer gives you
 - A hosted version of Sprint Zero itself
 
 ---
@@ -439,11 +464,11 @@ See [plan.md](plan.md) for the full roadmap.
 
 ---
 
-## Authors
+## 👥 Authors
 
 - **[Yousuf Alvi](https://github.com/yousuf-alvi)** · [LinkedIn](https://www.linkedin.com/in/yousufalvi/) — original author
-- **[Hamza Farooq](https://www.linkedin.com/in/hamzafarooq/)** — course integration ([Enterprise RAG & Multi-Agent Applications](https://maven.com/boring-bot/advanced-llm))
+- **[Hamza Farooq](https://www.linkedin.com/in/hamzafarooq/)** — course integration ([Agent Engineering Bootcamp](https://maven.com/boring-bot/advanced-llm))
 
-Originally published at [yousuf-labs/sprint-zero](https://github.com/yousuf-labs/sprint-zero).
+Originally published at [yousuf-labs/sprint-zero](https://github.com/yousuf-labs/sprint-zero). MIT licensed — see [LICENSE](LICENSE).
 
-MIT licensed. See [LICENSE](LICENSE).
+<div align="center"><sub>Part of the <a href="../../README.md">Agent Engineering Bootcamp</a> · Module 2 capstone</sub></div>

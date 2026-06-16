@@ -19,7 +19,7 @@ Rules for shaping:
 
 - The core loop from `docs/scope.md` is the spine of the PRD. User stories should make it work.
 - Excludes from `docs/scope.md` must NOT appear as features. Acknowledge them in Non-Goals.
-- **Authentication is non-negotiable** and always appears as Must-have user stories. The stack is Supabase Auth. Include sign up, log in, log out, and session persistence across reloads as explicit stories. Do not mark auth as [NEEDS INPUT] — it's a fixed part of the stack.
+- **Authentication is non-negotiable for any project that has users** (web-app / api-service at MVP+), and always appears as Must-have user stories: sign up, log in, log out, and session persistence across reloads. Describe the *behaviour*, not the mechanism — the data layer in `docs/scope.md` decides whether it's the backend's own `/auth` endpoints (`local`) or Supabase Auth (`supabase`). Do not mark auth as [NEEDS INPUT]. (A `cli-tool` may not have auth at all — only include it if the contract/PRD calls for it.)
 - The build level shapes acceptance criteria:
   - `clickable` — acceptance criteria describe the UI behaviour only. No persistence.
   - `MVP` — acceptance criteria describe real data persistence and the full auth dance on the core loop.
@@ -98,9 +98,9 @@ Leading indicators (early signals) and lagging indicators (final outcomes). One 
 ## Rules
 
 - Write the full PRD directly — no preamble, no chat commentary beyond a final one-line confirmation.
-- Plain English. No technical jargon outside Section 7 (Risks) where Supabase etc. is fine.
+- Plain English. No technical jargon outside Section 7 (Risks), where naming the data layer (Supabase, SQLite, etc.) is fine.
 - Mark assumptions with `[ASSUMPTION]`. Mark unresolved blockers with `[NEEDS INPUT]`.
-- Never mark auth as an assumption or open question. It's a fixed stack choice.
+- Never mark auth as an assumption or open question for a project that has users — it's a baseline requirement (the data layer just decides how it's implemented).
 - Write to `docs/prd.md`. Do not ask the user to confirm the save — just write it.
 - After writing, print: `PRD written. [N] must-have stories, [N] should-have. Ready for /decisions-writer.`
 

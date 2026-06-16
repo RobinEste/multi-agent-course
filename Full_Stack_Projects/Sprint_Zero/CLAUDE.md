@@ -11,8 +11,8 @@
 Sprint Zero is a cloneable Claude Code kit that turns a reference URL plus three scoping answers into a complete spec set and a working product. The user points Sprint Zero at something similar to what they want to build, answers one multi-part scoping question, and a team of sub-agents produces:
 
 - A full spec set in `docs/` (scope, reference brief, PRD, decisions, user stories, API contract)
-- A working build in `server/` (Express + Supabase) and `client/` (React + Vite)
-- Playwright-driven QA covering the auth flow and the core product loops
+- A working build whose stack is chosen at scoping time (see "Build configuration" below) — by default a local SQLite-backed Express + React app that runs with no external account
+- QA calibrated to the build — browser-driven for web apps, API-level for services, command runs for CLIs
 
 The audience is PMs, founders, and non-developers who can follow terminal output but don't write code. Every decision in this repo prioritises:
 
@@ -30,23 +30,24 @@ The user picks one of three levels up front. The scope level drives every downst
 | Level       | What it produces                                                                                                  |
 | ----------- | ----------------------------------------------------------------------------------------------------------------- |
 | `clickable` | Mock backend, fake data, no auth. Useful for pitching and flow reviews.                                           |
-| `MVP`       | Real Supabase, real auth, one core loop works end-to-end. The main v1 target.                                     |
-| `Prod`      | MVP plus error boundaries, loading states, input validation, and Playwright happy path + one error path per loop. |
+| `MVP`       | Real data + real auth via the chosen data layer, one core loop works end-to-end. The main v1 target.              |
+| `Prod`      | MVP plus error boundaries, loading states, input validation, and a happy path + one error path test per loop.     |
 
-`docs/scope.md` is the lever that carries this choice through the pipeline.
+`docs/scope.md` is the lever that carries this choice — and the build configuration above — through the pipeline. The scope level is independent of the data layer: `clickable` is mock-only regardless, while `MVP`/`Prod` use whichever data layer was chosen.
 
 ---
 
-## The fixed stack
+## Build configuration
 
-Sprint Zero v1 produces one stack. Not configurable, not inferred.
+The build is configured by three orthogonal choices captured during scoping, on top of the scope level. The full catalog — concrete dirs, ports, run commands, and test strategy for every combination — lives in `.claude/stacks.md`, which every agent reads. Do not hardcode a stack assumption anywhere else.
 
-- **Frontend:** React + Vite
-- **Backend:** Express (Node)
-- **Database + Auth:** Supabase (Postgres + Supabase Auth)
-- **Testing:** Playwright via Playwright MCP
+- **Project type** — `web-app` (UI + API), `api-service` (API only, no frontend), or `cli-tool` (a command-line program).
+- **Stack profile** — `node-react` (Express + React/Vite), `nextjs` (one Next.js app, UI + API together), or `python-react` (FastAPI + React/Vite).
+- **Data layer** — `local` (SQLite + a self-issued JWT, **zero external setup**) or `supabase` (hosted Postgres + Supabase Auth, needs a `.env`).
 
-The user brings their own Supabase project. Credentials go in `.env` (see `.env.example`).
+**Default: `web-app` + `node-react` + `local`.** That default clones and runs with no account, no keys, and no `.env`. Supabase is opt-in. `docs/scope.md` records all three choices and carries them through the pipeline alongside the scope level.
+
+Testing is Playwright (via Playwright MCP) for web apps, HTTP integration tests for API services, and command-output assertions for CLIs.
 
 ---
 
@@ -64,10 +65,10 @@ sprint-zero/
 ├── README.md                 ← public-facing description
 ├── plan.md                   ← phased build plan for this repo itself
 ├── LICENSE                   ← MIT, Yousuf Alvi
-├── .env.example              ← SUPABASE_URL + SUPABASE_PUBLISHABLE_KEY + SUPABASE_SECRET_KEY
-template
+├── .env.example              ← only needed for the supabase data layer (local needs none)
 ├── .gitignore
 ├── .claude/
+│   ├── stacks.md             ← the build-configuration catalog (read by every agent)
 │   ├── commands/             ← slash commands (Phase 2)
 │   └── agents/               ← sub-agents (Phase 3)
 ├── docs/                     ← generated spec files live here per run
@@ -83,55 +84,58 @@ Files generated at runtime (per user run):
 - `docs/decisions.md` — scope cuts and tradeoffs, tied to the chosen level
 - `docs/user-stories.md` — user stories
 - `docs/api-contract.md` — the contract all agents build to
-- `server/` — Express + Supabase build
-- `client/` — React + Vite build
+- `server/` / `client/` (node-react, python-react) or one `app/` (nextjs) or `cli/` (cli-tool) — the build, per the resolved stack profile
+- `*.db` — the SQLite file for the `local` data layer (gitignored)
 - `.claude/settings.local.json` — demo-time permissive settings, gitignored
 
 ---
 
 ## Agent topology
 
-Sprint Zero's build layer has four sub-agents. One orchestrator, two engineers, one QA. The user talks to the orchestrator. The orchestrator handles everything else.
+Sprint Zero's build layer has one briefing sub-agent (tech-lead) and three worker sub-agents (two engineers, one QA). **The main Claude Code session is the orchestrator — it is the only thing that spawns sub-agents.** tech-lead does not spawn anyone; it reads specs and hands a build brief back to the main session, which then spawns the workers. This is a hard Claude Code constraint, not a stylistic choice: a sub-agent cannot spawn another sub-agent (the `Task` tool is stripped from nested contexts), and tech-lead is declared with `tools: Read` only. See "Build orchestration pattern" below for the full rationale.
 
 ```
-User
+You
   │
-  └─ tech-lead ──┬─ backend-engineer   (Express + Supabase)
-                 ├─ frontend-engineer  (React + Vite + Supabase Auth)
-                 │
-                 └─ qa-engineer        (Playwright MCP)
+  └─ main session  (the orchestrator — the only thing that spawns)
+        │
+        ├─ 1. invoke tech-lead ........ reads specs → returns a build brief
+        │                               (tools: Read only — no code, no spawning)
+        │
+        ├─ 2. spawn IN PARALLEL ......  backend-engineer   (API or CLI, per stack profile + data layer)
+        │                              frontend-engineer  (web-app only; React/Vite or Next.js pages)
+        │
+        └─ 3. after both finish ......  qa-engineer        (browser / API / CLI, per project type)
 ```
 
-### tech-lead
+Which engineers run depends on the project type — `frontend-engineer` is spawned only for `web-app`.
 
-- Reads `docs/prd.md`, `docs/api-contract.md`, `docs/decisions.md`, and `docs/scope.md`
-- Briefs the user on what it understood
-- Spawns `backend-engineer` and `frontend-engineer` in parallel in a single turn
-- Waits for both, then spawns `qa-engineer`
-- Returns a delivery summary
-- Does not write application code
+### tech-lead (briefing only — does not spawn)
+
+- Reads `docs/scope.md` (scope level + build config), `docs/prd.md`, `docs/api-contract.md`, `docs/decisions.md`, and resolves the config against `.claude/stacks.md`
+- Returns a build brief: what it understood, the resolved dirs/ports, and a **recommended** execution order (which engineers the main session should spawn, and in what order)
+- Does **not** spawn engineers or QA, and does not write application code — `tools: Read` only. The main session acts on the recommendation.
 
 ### backend-engineer
 
-- Builds the Express API in `server/`
-- Uses `@supabase/supabase-js` for data access
-- JWT verification middleware on protected routes
-- Seed script uses the Supabase admin client
+- Builds the API (Express / FastAPI / Next.js route handlers) or, for `cli-tool`, a command-line program — per the resolved stack profile
+- Data access + auth per the data layer: `local` → SQLite + a self-issued JWT (`/auth/*` endpoints), `supabase` → `@supabase/supabase-js` + JWKS verification
+- Seed script creates the schema (SQLite or via migration) and a demo user with realistic data
 - Builds strictly to `docs/api-contract.md`
 
-### frontend-engineer
+### frontend-engineer (web-app only)
 
-- Builds the React app in `client/` using Vite
-- Supabase Auth: login page, signup page, session context, protected route wrapper
+- Builds the UI — React + Vite in `client/`, or pages inside the Next.js `app/`
+- Auth per the data layer: `local` → calls the backend `/auth/*`; `supabase` → Supabase Auth SDK. Login, signup, session context, protected route wrapper
 - Product screens come from `docs/user-stories.md` and the contract
 - Form patterns standardised so QA can drive them
 
 ### qa-engineer
 
-- Runs the full auth dance (signup, session, logout, login, protected route, 401 on expired token)
-- Runs the core product loop end-to-end
-- At `Prod` scope, adds one error-path test per loop
-- Reports pass/fail back to `tech-lead`
+- `web-app`: the full auth dance (signup, session, logout, login, protected route, 401) + core loop in a real browser via Playwright
+- `api-service`: contract + HTTP integration tests, auth verified at the API level (no browser)
+- `cli-tool`: runs the CLI with sample args and asserts on stdout/exit codes
+- At `Prod` scope, adds one error-path test per loop. Reports pass/fail back to the main session, which writes the delivery summary
 
 ---
 

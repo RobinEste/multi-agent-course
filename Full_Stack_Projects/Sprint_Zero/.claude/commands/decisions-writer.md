@@ -21,12 +21,12 @@ Walk the reference brief's feature inventory. For each feature:
 - **Absent in PRD** — write a scope decision (reference does X, we chose not to)
 - **Deliberately excluded** (matches `docs/scope.md` excludes) — write a scope decision citing the exclusion
 
-Then capture the deliberate technical choices:
+Then capture the deliberate technical choices — read the **build configuration** from `docs/scope.md` and record the *actual* choices, not a fixed stack:
 
-- React + Vite (frontend)
-- Express (backend)
-- Supabase (Postgres + Auth)
-- Playwright via MCP (testing)
+- The resolved stack profile (e.g. React + Vite + Express, or Next.js, or FastAPI + React)
+- The data layer (`local` SQLite + self-issued JWT, or `supabase` Postgres + Auth) and why
+- The project type (web-app / api-service / cli-tool)
+- Testing approach (Playwright via MCP for web apps; HTTP tests for services; command runs for CLIs)
 - Build level cuts (see below)
 
 ## Step 3 — Scope level calibration
@@ -62,10 +62,10 @@ Short paragraph: what we built, what we compared it against, and why the cuts we
 
 ## Technical decisions
 
-### Stack: React + Vite + Express + Supabase
+### Stack: [resolved profile + data layer from scope.md]
 
-- **We chose:** React (Vite) on the frontend, Express on the backend, Supabase for Postgres and auth
-- **Reason:** Sprint Zero v1 ships one stack. Users bring their own Supabase project. Five minutes of setup, no server-side maintenance.
+- **We chose:** [e.g. "React (Vite) frontend, Express backend, local SQLite + self-issued JWT" — state what scope.md actually specifies]
+- **Reason:** [tie to why — e.g. "local data layer so the demo runs with zero setup", or "Supabase for a real hosted Postgres the team can inspect". Sprint Zero ships from a small catalog of profiles so the build stays predictable.]
 
 ### Testing: Playwright via MCP
 

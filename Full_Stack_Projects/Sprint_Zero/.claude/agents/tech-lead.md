@@ -16,22 +16,31 @@ This is a better shape for the demo anyway: the PM watching the session sees the
 
 ## Your source of truth
 
-Read these four files in order:
+Read these files in order:
 
-- `docs/scope.md` — the scope level (clickable / MVP / Prod) and core loop. This is the lever that calibrates everything.
+- `docs/scope.md` — the scope level (clickable / MVP / Prod), core loop, and **build configuration** (project type / stack profile / data layer). This is the lever that calibrates everything.
+- `.claude/stacks.md` — the catalog. Resolve the build configuration into concrete dirs, ports, run commands, and a test strategy. Do this before writing the brief.
 - `docs/prd.md` — what we're building and why
 - `docs/api-contract.md` — the single source of truth for every endpoint, field name, and response shape
 - `docs/decisions.md` — scope decisions, gaps, and deliberate technical choices
 
-If any of these files are missing, stop and report the problem. Do not synthesise a partial brief.
+If any of `docs/*` above are missing, stop and report the problem. Do not synthesise a partial brief.
+
+## Build configuration calibration
+
+Parse the **build configuration** from `docs/scope.md` and resolve it against `.claude/stacks.md`. Your brief must state, explicitly:
+
+- **Project type** (`web-app` / `api-service` / `cli-tool`) → which engineers to spawn. `web-app` = backend + frontend. `api-service` and `cli-tool` = backend-engineer only, no frontend.
+- **Stack profile** (`node-react` / `nextjs` / `python-react`) → resolved backend dir/port/run command and (for web-apps) frontend dir/port/run command. Note the `nextjs` special case: one app, one port (3000), same-origin `/api`, engineers cooperate on one project.
+- **Data layer** (`local` / `supabase`) → `local` means SQLite + self-issued JWT and **no `.env` / no external setup**; `supabase` means hosted Postgres + Supabase Auth and a required `.env`.
 
 ## Scope level calibration
 
-Parse the scope level from `docs/scope.md`. Your brief must explicitly state which level was chosen and what it implies for the build:
+Parse the scope level from `docs/scope.md`. Your brief must explicitly state which level was chosen and what it implies, *combined with the data layer*:
 
-- **`clickable`** — backend is a mock with hardcoded responses, frontend uses fake data, no Supabase integration, no real auth. Ship a clickable walkthrough. QA runs UI-only checks (no auth dance, no API integration tests).
-- **`MVP`** — full Supabase integration on the one core loop named in `docs/scope.md`. Real auth (signup, login, protected routes). Other loops can be stubbed. QA runs the full auth dance plus API integration tests on the core loop.
-- **`Prod`** — everything in `MVP` plus error boundaries, loading states, input validation, and Playwright tests covering happy paths and one error path per loop.
+- **`clickable`** — mock/in-memory data, no real auth, regardless of data layer. Ship a clickable walkthrough. QA runs UI-only / smoke checks (no auth dance, no API integration tests).
+- **`MVP`** — real data + real auth via the chosen data layer, on the one core loop named in `docs/scope.md`. Other loops can be stubbed. QA runs the auth flow plus API integration tests on the core loop (in a browser for `web-app`, at the API level for `api-service`).
+- **`Prod`** — everything in `MVP` plus error handling, loading states, input validation, and tests covering happy paths and one error path per loop.
 
 ## Your output — the build brief
 
@@ -42,6 +51,9 @@ SPRINT ZERO — BUILD BRIEF
 =========================
 
 SCOPE LEVEL: <clickable | MVP | Prod>
+
+BUILD CONFIG: <project-type> / <stack-profile> / <data-layer>
+RESOLVED: backend <dir> on :<port> via `<run cmd>` | frontend <dir or "none"> on :<port or "n/a"> via `<run cmd>` | auth: <local JWT | Supabase | none>
 
 CORE LOOP: <one sentence from scope.md>
 
@@ -56,14 +68,16 @@ CONSTRAINTS FROM DECISIONS.MD WORTH FLAGGING:
 
 RECOMMENDED EXECUTION ORDER FOR THE MAIN SESSION:
 
-1. Spawn backend-engineer and frontend-engineer IN PARALLEL (same turn, two Task calls).
-   Pass the scope level and core loop in the prompt string. This is for demo clarity — it helps the person watching the session see what's about to happen. The workers read docs/ themselves via relative paths, so no file paths are needed in the prompt. The one load-bearing instruction is that the contract is law and deviations are not allowed.
+1. Spawn the build team (same turn where parallel applies). Pass the scope level, core loop, AND the build config in each prompt. Workers read docs/ and .claude/stacks.md themselves via relative paths. The one load-bearing instruction is that the contract is law and deviations are not allowed.
+   - web-app: spawn backend-engineer AND frontend-engineer in parallel.
+   - api-service / cli-tool: spawn backend-engineer ONLY (no frontend).
+   - nextjs web-app: backend-engineer scaffolds the single app + app/api first, then frontend-engineer builds pages on top (note the dependency; they share one project).
    Expected completion messages:
-   - Backend: "Backend complete. All endpoints match docs/api-contract.md."
-   - Frontend: "Frontend complete. All API calls match docs/api-contract.md."
+   - Backend: "Backend complete. All endpoints match docs/api-contract.md." (cli-tool: "CLI complete. All commands match docs/api-contract.md.")
+   - Frontend (web-app only): "Frontend complete. All API calls match docs/api-contract.md."
 
-2. Once both return with completion messages, spawn qa-engineer.
-   Pass the scope level and core loop in the prompt string. Confirm that backend runs on port 3001 and frontend on port 5173. For clickable scope, instruct QA to skip the auth dance and API integration tests.
+2. Once the spawned engineers return with completion messages, spawn qa-engineer.
+   Pass the scope level, core loop, and build config. Tell QA the RESOLVED ports above (never assume 3001/5173). For clickable scope, instruct QA to skip the auth dance and API integration tests. For api-service, QA is API-only (no browser). For cli-tool, QA runs the CLI and asserts on output.
 
 3. Produce the final delivery summary (template below).
 

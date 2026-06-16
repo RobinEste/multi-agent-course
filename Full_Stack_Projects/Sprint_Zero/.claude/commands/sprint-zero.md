@@ -120,9 +120,19 @@ Print:
 
 ---
 
-## Step 1b — Supabase preflight
+## Step 1b — Data-layer preflight (conditional)
 
-Before the scoping conversation begins, check whether a `.env` file exists at the project root and contains non-empty values for `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, and `DATABASE_URL`.
+Sprint Zero supports two data layers, chosen during scoping (Step 2) and recorded in `docs/scope.md`: `local` (SQLite, zero setup) and `supabase` (hosted Postgres + auth). See `.claude/stacks.md` for the full description.
+
+**This preflight only applies to the `supabase` data layer, and the data layer is not known until scoping completes.** So:
+
+- If `docs/scope.md` already exists, read its **Data layer** now and run the Supabase check below only if it says `supabase`.
+- If `docs/scope.md` does not exist yet, **defer this entire step** — run it immediately after Step 2 writes `docs/scope.md`, and only if the chosen data layer is `supabase`.
+- If the data layer is `local`, **skip this step entirely** and print: `Data layer: local (SQLite). No external setup needed.`
+
+### Supabase check (only when data layer is `supabase`)
+
+Check whether a `.env` file exists at the project root and contains non-empty values for `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, and `DATABASE_URL`.
 
 If the file is missing or any key is empty, print this block exactly and wait for the user to confirm before continuing:
 
@@ -251,7 +261,7 @@ Print:
 
 > Spec set complete. Invoking tech-lead for the build brief.
 
-Invoke the `tech-lead` sub-agent. The one load-bearing instruction in the prompt is that the contract is law and deviations are not allowed. Tech-lead reads `docs/` itself to get the scope level, core loop, and the full spec set.
+Invoke the `tech-lead` sub-agent. The one load-bearing instruction in the prompt is that the contract is law and deviations are not allowed. Tech-lead reads `docs/` itself to get the scope level, core loop, build configuration (project type / stack profile / data layer), and the full spec set, and resolves the concrete dirs, ports, and run commands against `.claude/stacks.md`. Its brief states which engineers to spawn and the resolved ports — use those, do not assume the node-react defaults.
 
 If tech-lead reports a missing or malformed doc, print `STATE: BUILD_BRIEF_NEEDED` with recovery instructions and stop.
 
@@ -261,23 +271,29 @@ Once tech-lead returns its build brief, print it so the user can read it before 
 
 ## Step 9 — Parallel build and QA
 
-Print:
+**Which engineers to spawn depends on the project type** (from `docs/scope.md`, resolved against `.claude/stacks.md`):
 
-> Build brief received. Spawning backend-engineer and frontend-engineer in parallel.
+- `web-app` — spawn `backend-engineer` **and** `frontend-engineer` in parallel.
+- `api-service` or `cli-tool` — spawn `backend-engineer` **only** (it owns the API or the CLI source). There is no frontend; skip `frontend-engineer`.
+- `nextjs` profile — backend-engineer scaffolds the single Next.js app and its `app/api` routes, then frontend-engineer builds the pages on top of the same project. They still run in the same turn for `web-app`; both write into one app, so the brief from tech-lead will note the sequencing.
 
-Spawn `backend-engineer` and `frontend-engineer` in the same turn (two Task calls in parallel). Pass the scope level and core loop in each prompt. The one load-bearing instruction: the contract is law and deviations are not allowed. The workers read `docs/` themselves via relative paths.
+Print (adjust wording to the engineers you're actually spawning):
 
-Wait for both to return their exact completion messages:
-- Backend: "Backend complete. All endpoints match docs/api-contract.md."
-- Frontend: "Frontend complete. All API calls match docs/api-contract.md."
+> Build brief received. Spawning the build team in parallel.
 
-If either returns anything other than its completion message, print `STATE: BUILD_NEEDED` with recovery instructions and stop.
+Spawn the engineer(s) in the same turn. Pass the scope level, core loop, **and the build configuration (project type / stack profile / data layer)** in each prompt. The one load-bearing instruction: the contract is law and deviations are not allowed. The workers read `docs/` and `.claude/stacks.md` themselves via relative paths.
 
-Once both complete, print:
+Wait for each spawned engineer to return its exact completion message:
+- Backend: "Backend complete. All endpoints match docs/api-contract.md." (for `cli-tool`, "CLI complete. All commands match docs/api-contract.md.")
+- Frontend (web-app only): "Frontend complete. All API calls match docs/api-contract.md."
 
-> Backend and frontend complete. Spawning qa-engineer.
+If any returns anything other than its completion message, print `STATE: BUILD_NEEDED` with recovery instructions and stop.
 
-Spawn `qa-engineer`. Pass the scope level and core loop in the prompt. Confirm that backend runs on port 3001 and frontend on port 5173. For `clickable` scope, instruct QA to skip the auth dance and API integration tests.
+Once the spawned engineers complete, print:
+
+> Build complete. Spawning qa-engineer.
+
+Spawn `qa-engineer`. Pass the scope level, core loop, and build configuration in the prompt. Tell QA the **resolved ports** from the stack profile (e.g. node-react: backend 3001 / frontend 5173; python-react: backend 8000 / frontend 5173; nextjs: app on 3000, same-origin API). For `clickable` scope, instruct QA to skip the auth dance and API integration tests. For `api-service`, QA runs API/integration checks only (no browser). For `cli-tool`, QA runs the CLI with sample args and asserts on output.
 
 ---
 
@@ -302,7 +318,9 @@ Ready to demo: YES / NO
 
 If QA reports failures, print `STATE: QA_NEEDED` with recovery instructions after the summary.
 
-If the QA report mentions that database tables are missing or the seed script failed, print this reminder:
+If the QA report mentions that database tables are missing or the seed script failed **and the data layer is `local`**, the fix is just to re-run the seed (it creates the SQLite schema): print `Run the seed command for this build to (re)create the SQLite tables, then re-run QA.`
+
+If the QA report mentions database/seed failures **and the data layer is `supabase`**, print this reminder:
 
 > **Database setup needed — likely a missing `DATABASE_URL`:**
 > 1. Go to Supabase Dashboard → Settings → Database → Connection string → URI (Session mode, port 5432).
@@ -318,34 +336,54 @@ If `--no-launch` was passed, or if QA reported `Ready to demo: NO`, skip this st
 
 > Skipping auto-launch. Start the servers manually — see the "Start the app manually" section in the README.
 
-Otherwise, hand the user a working app without making them wire it up themselves.
+Otherwise, hand the user a working app without making them wire it up themselves. **Resolve the dirs, run commands, and ports from `docs/scope.md` + `.claude/stacks.md` first** — the steps below use the node-react web-app names as the worked example, but substitute the resolved values for other profiles/types.
 
-**11a. Install dependencies if needed.** Check whether `server/node_modules` and `client/node_modules` exist. If either is missing, run `npm install` in that folder. Print one line per install ("Installing server dependencies…" / "Installing client dependencies…"). QA may have already done this — don't re-run if the folder exists.
+**Resolved values you need (look them up, do not assume):**
 
-**11b. Wire `client/.env`.** If `client/.env` does not exist, create it from `client/.env.example`, copying `SUPABASE_URL` from the root `.env` into `VITE_SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` into `VITE_SUPABASE_PUBLISHABLE_KEY`. If `client/.env.example` is missing, write `client/.env` directly with those two lines.
+- node-react web-app: backend `cd server && node index.js` on 3001; frontend `cd client && npm run dev` on 5173.
+- python-react web-app: backend `cd server && uvicorn main:app --port 8000` (after `pip install -r requirements.txt` in a venv) on 8000; frontend on 5173.
+- nextjs web-app: a single app, `npm run dev` on 3000 — there is no separate frontend to start, and no `client/.env` to wire.
+- api-service: backend only — start it, skip every frontend sub-step, and the "open in browser" line points at the API root or `/docs` (FastAPI) instead of a UI.
+- cli-tool: nothing to start — skip 11d–11f and instead print the example invocation (e.g. `node cli/index.js --help` or `python cli/main.py --help`) and the seed/demo data note.
 
-**11c. Seed the database.** Run `cd server && node seed.js`. This is idempotent — safe to re-run after QA. Capture the demo user's email and password from stdout for the launch summary.
+**11a. Install dependencies if needed.** For each code dir the build produced, install if its dependency folder is missing. Node dirs: `npm install` if `node_modules/` is absent. Python backend: create `.venv` and `pip install -r requirements.txt` if `.venv` is absent. Print one line per install. QA may have already done this — don't re-run if already present.
 
-**11d. Start the backend in the background.** Run `cd server && node index.js` as a background process. Wait two seconds, then verify with `curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/` (any 2xx/3xx/4xx response means it's up; a connection error means it failed to start).
+**11b. Wire frontend env — only for `supabase` web-apps with a separate frontend.** Skip entirely when data layer is `local` (the local frontend talks to our own backend `/auth/*` and needs no keys) and for `nextjs`/`api-service`/`cli-tool`. When it does apply: if `client/.env` does not exist, create it from `client/.env.example`, copying `SUPABASE_URL` → `VITE_SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` → `VITE_SUPABASE_PUBLISHABLE_KEY`.
 
-**11e. Start the frontend in the background.** Run `cd client && npm run dev` as a background process. Wait three seconds, then verify with `curl -s -o /dev/null -w "%{http_code}" http://localhost:5173/`.
+**11c. Seed the data.** Run the seed command for the build (node-react/api: `cd server && node seed.js`; python: `cd server && .venv/bin/python seed.py`; nextjs: `node seed.js` at the app root). For `local`, this creates the SQLite schema and demo rows with no external dependency. Idempotent. Capture the demo user's email and password from stdout for the launch summary (omit for `clickable`, which has no real auth).
 
-**11f. Print the launch summary** in this exact format:
+**11d. Start the backend/app in the background** using the resolved run command. Wait two seconds, then verify with `curl -s -o /dev/null -w "%{http_code}" http://localhost:<backend-port>/` (any HTTP response means it's up; a connection error means it failed to start).
+
+**11e. Start the frontend in the background — web-app with a separate frontend only.** Skip for `nextjs` (already started in 11d), `api-service`, and `cli-tool`. Use the resolved command/port. Verify with `curl` against the frontend port.
+
+**11f. Open the app cross-platform.** Pick the URL the user should open (frontend port for a UI; backend root or `/docs` for an api-service). Open it with the right command for the OS, and never abort if it fails — just print the URL:
+
+```bash
+URL="http://localhost:<open-port>"
+if command -v open >/dev/null 2>&1; then open "$URL"          # macOS
+elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$URL" # Linux
+elif command -v wslview >/dev/null 2>&1; then wslview "$URL"   # WSL
+elif command -v cmd.exe >/dev/null 2>&1; then cmd.exe /c start "" "$URL"  # Windows
+else echo "Open this in your browser: $URL"; fi
+```
+
+**11g. Print the launch summary** in this format (substitute resolved ports/commands; drop the frontend line for api-service; drop login for clickable):
 
 ```
 SPRINT ZERO — APP IS RUNNING
 ============================
-Backend:  http://localhost:3001  (background)
-Frontend: http://localhost:5173  (background)
+Backend:  http://localhost:<backend-port>  (background)
+Frontend: http://localhost:<frontend-port>  (background)   ← omit for api-service / nextjs
 
 Demo login:
   email:    <from seed output>
   password: <from seed output>
 
-Open http://localhost:5173 in your browser.
+Open http://localhost:<open-port> in your browser.
 
-To stop the servers later:
-  pkill -f "node index.js" && pkill -f "vite"
+To stop the servers later (cross-platform):
+  - macOS / Linux: pkill -f "<backend run cmd>"  and  pkill -f "vite" (or "next dev")
+  - Windows: close the terminal windows running them, or use Task Manager.
 ```
 
 If any sub-step in 11 fails, print `STATE: LAUNCH_FAILED — start the servers manually per the README.` and stop. Do not retry. The build succeeded — only the launch did not.

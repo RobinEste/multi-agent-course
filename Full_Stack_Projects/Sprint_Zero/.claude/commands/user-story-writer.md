@@ -31,7 +31,7 @@ The following four stories must appear in Must-have, fully expanded, regardless 
 - Log out
 - Session persists across reload
 
-Each needs acceptance criteria that include the Supabase Auth behaviour — e.g. "Given a new user on /signup, when they submit valid email and password, then a Supabase session is created and they land on the authenticated home screen."
+Each needs acceptance criteria describing the auth *behaviour* (mechanism-agnostic — the data layer in `docs/scope.md` decides whether it's the backend's `/auth` endpoints or Supabase Auth) — e.g. "Given a new user on /signup, when they submit a valid email and password, then a session is created and they land on the authenticated home screen."
 
 ## Step 4 — Edge cases and questions
 
