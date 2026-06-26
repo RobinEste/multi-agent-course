@@ -174,7 +174,17 @@ When many agents beat one — and the more common case where they don't. Build a
 
 **Key topics:** one agent vs. many · topologies (orchestrator-worker, hierarchical, swarm, handoff) · **MCP** (tools), **A2A** (agent-to-agent), **ADK** (Google's framework) · shared memory & message passing
 
+> 🗺️ **New here?** [Module 5 overview](modules/Module_5_Multi_Agents/README.md) — how MCP, A2A, and ADK compose into one running system.
 
+**🛎️ Featured project: Advanced Customer Support Agent** — a CLI support agent that ties all three protocols together: **ADK** defines the agents (Gemini 2.5 Flash), **A2A** runs the Security Judge and PII Masker as independent microservices, and **MCP Toolbox** exposes a PostgreSQL backend as tools. Wrapped in a multi-layer security pipeline (input sanitization → A2A security judge → DLP-based PII masking).
+[View documentation →](modules/Module_5_Multi_Agents/advance-customer-support-agent-feature-A2A-MCP-ADK/README.md)
+
+```bash
+cd modules/Module_5_Multi_Agents/advance-customer-support-agent-feature-A2A-MCP-ADK
+pip install -r requirements.txt
+cp .env.example .env      # add Google Cloud + Mem0 keys
+python -m cs_agent.a2a.run_servers   # start the A2A servers, then run the CLI
+```
 
 ---
 

@@ -1,9 +1,14 @@
+import warnings
+warnings.filterwarnings("ignore")
+
 import asyncio
 import json
 import logging
 import os
 import sys
 from getpass import getpass
+
+logging.getLogger().setLevel(logging.ERROR)
 
 # Ensure both the cs_agent/ dir (for memory, prompts, greet) and the
 # project root (for cs_agent.* packages) are importable.
@@ -29,10 +34,13 @@ from greet import authenticate_user, display_users, get_user_actions
 
 from cs_agent.security.sanitizer import sanitize_input
 from cs_agent.a2a.client import call_a2a_agent
+from telemetry import init_telemetry
+from openinference.semconv.trace import SpanAttributes
 
 logger = logging.getLogger(__name__)
 
 load_dotenv()
+tracer = init_telemetry()
 
 A2A_JUDGE_HOST = os.getenv("A2A_JUDGE_HOST", "localhost")
 A2A_JUDGE_PORT = int(os.getenv("A2A_JUDGE_PORT", "10002"))
@@ -80,47 +88,68 @@ async def validate_input(user_input: str) -> bool:
 
     Returns True if all layers pass, False if any layer blocks.
     """
-    # --- Layer 1: Input sanitization (local) ---
-    try:
-        user_input = sanitize_input(user_input)
-    except ValueError as exc:
-        print(f"\nInput rejected: {exc}")
-        print("Please rephrase your question.\n")
-        return False
+    with tracer.start_as_current_span("security.validate_input") as span:
+        span.set_attribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, "GUARDRAIL")
+        span.set_attribute(SpanAttributes.INPUT_VALUE, user_input)
 
-    # --- Layer 2: Security Judge via A2A protocol ---
-    try:
-        verdict = await call_a2a_agent(
-            query=user_input, host=A2A_JUDGE_HOST, port=A2A_JUDGE_PORT
-        )
-        if "BLOCKED" in verdict.upper():
-            print("\nSecurity Alert: Your input was flagged by the Security Judge agent.")
-            print("Please rephrase your question in a safe manner.\n")
-            return False
-    except Exception as exc:
-        logger.error("Judge A2A agent call failed: %s", exc)
-        print("\nError: Could not reach the Security Judge A2A agent.")
-        print("Ensure A2A servers are running: python -m cs_agent.a2a.run_servers\n")
-        return False
+        # --- Layer 1: Input sanitization (local) ---
+        with tracer.start_as_current_span("security.sanitize") as san_span:
+            san_span.set_attribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, "GUARDRAIL")
+            san_span.set_attribute(SpanAttributes.INPUT_VALUE, user_input)
+            try:
+                user_input = sanitize_input(user_input)
+                san_span.set_attribute(SpanAttributes.OUTPUT_VALUE, "passed")
+            except ValueError as exc:
+                san_span.set_attribute(SpanAttributes.OUTPUT_VALUE, f"blocked: {exc}")
+                print(f"\nInput rejected: {exc}")
+                print("Please rephrase your question.\n")
+                return False
 
-    return True
+        # --- Layer 2: Security Judge via A2A protocol ---
+        with tracer.start_as_current_span("security.a2a_judge") as judge_span:
+            judge_span.set_attribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, "GUARDRAIL")
+            judge_span.set_attribute(SpanAttributes.INPUT_VALUE, user_input)
+            try:
+                verdict = await call_a2a_agent(
+                    query=user_input, host=A2A_JUDGE_HOST, port=A2A_JUDGE_PORT
+                )
+                blocked = "BLOCKED" in verdict.upper()
+                judge_span.set_attribute(SpanAttributes.OUTPUT_VALUE, verdict[:200])
+                if blocked:
+                    span.set_attribute(SpanAttributes.OUTPUT_VALUE, "blocked")
+                    print("\nSecurity Alert: Your input was flagged by the Security Judge agent.")
+                    print("Please rephrase your question in a safe manner.\n")
+                    return False
+            except Exception as exc:
+                judge_span.set_attribute(SpanAttributes.OUTPUT_VALUE, f"error: {exc}")
+                logger.error("Judge A2A agent call failed: %s", exc)
+                print("\nError: Could not reach the Security Judge A2A agent.")
+                print("Ensure A2A servers are running: python -m cs_agent.a2a.run_servers\n")
+                return False
+
+        span.set_attribute(SpanAttributes.OUTPUT_VALUE, "passed")
+        return True
 
 
 async def _mask_response(text: str) -> str:
     """Apply PII masking via the Mask A2A agent."""
-    try:
-        masked = await call_a2a_agent(
-            query=text, host=A2A_MASK_HOST, port=A2A_MASK_PORT
-        )
-        if not masked:
+    with tracer.start_as_current_span("security.a2a_mask") as span:
+        span.set_attribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, "GUARDRAIL")
+        span.set_attribute(SpanAttributes.INPUT_VALUE, text[:500])
+        try:
+            masked = await call_a2a_agent(
+                query=text, host=A2A_MASK_HOST, port=A2A_MASK_PORT
+            )
+            if not masked:
+                span.set_attribute(SpanAttributes.OUTPUT_VALUE, text[:500])
+                return text
+            lower_masked = masked.lower()
+            span.set_attribute(SpanAttributes.OUTPUT_VALUE, lower_masked[:500])
+            return lower_masked
+        except Exception as exc:
+            span.set_attribute(SpanAttributes.OUTPUT_VALUE, f"mask_skipped: {exc}")
+            logger.warning("Mask A2A agent unreachable, returning raw text: %s", exc)
             return text
-        lower_masked = masked.lower()
-        
-
-        return lower_masked
-    except Exception as exc:
-        logger.warning("Mask A2A agent unreachable, returning raw text: %s", exc)
-        return text
 
 
 async def _passes_guardrail(
@@ -289,33 +318,93 @@ async def main():
         if user_input.lower() in ["quit", "exit", "bye", "q"]:
             break
 
-        if not await validate_input(user_input):
-            continue
+        with tracer.start_as_current_span("agent.turn") as turn_span:
+            turn_span.set_attribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, "CHAIN")
+            turn_span.set_attribute(SpanAttributes.INPUT_VALUE, user_input)
+            turn_span.set_attribute("user.id", USER_ID)
 
-        if not await _passes_guardrail(
-            user_input=user_input, runner=guardrail_runner, user_id=USER_ID
-        ):
-            print(
-                "\nI’m not able to help with that request. "
-                "Please ask a safe, customer-support–related question instead.\n"
+            if not await validate_input(user_input):
+                turn_span.set_attribute("turn.blocked", True)
+                turn_span.set_attribute("turn.block_reason", "security_validation")
+                turn_span.set_attribute(SpanAttributes.OUTPUT_VALUE, "BLOCKED: security_validation")
+                continue
+
+            with tracer.start_as_current_span("guardrail.check") as g_span:
+                g_span.set_attribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, "GUARDRAIL")
+                g_span.set_attribute(SpanAttributes.INPUT_VALUE, user_input)
+                passed = await _passes_guardrail(
+                    user_input=user_input, runner=guardrail_runner, user_id=USER_ID
+                )
+                g_span.set_attribute("guardrail.passed", passed)
+                g_span.set_attribute(SpanAttributes.OUTPUT_VALUE, "safe" if passed else "unsafe")
+
+            if not passed:
+                turn_span.set_attribute("turn.blocked", True)
+                turn_span.set_attribute("turn.block_reason", "guardrail")
+                turn_span.set_attribute(SpanAttributes.OUTPUT_VALUE, "BLOCKED: guardrail")
+                print(
+                    "\nI’m not able to help with that request. "
+                    "Please ask a safe, customer-support–related question instead.\n"
+                )
+                continue
+
+            # Show a short, context-aware loading message before calling the agent.
+            await _show_loading(_loading_label_for_request(user_input))
+
+            messages.append({"role": "user", "content": user_input})
+            content = types.Content(role="user", parts=[types.Part(text=user_input)])
+
+            tool_calls_log = []
+            tool_results_log = []
+
+            response = runner.run(
+                user_id=USER_ID, session_id=f"session_{USER_ID}", new_message=content
             )
-            continue
 
-        # Show a short, context-aware loading message before calling the agent.
-        await _show_loading(_loading_label_for_request(user_input))
+            for event in response:
+                # Capture tool calls for observability
+                for fc in (event.get_function_calls() or []):
+                    tool_calls_log.append({"name": fc.name, "args": fc.args})
 
-        messages.append({"role": "user", "content": user_input})
-        content = types.Content(role="user", parts=[types.Part(text=user_input)])
-        response = runner.run(
-            user_id=USER_ID, session_id=f"session_{USER_ID}", new_message=content
-        )
+                for fr in (event.get_function_responses() or []):
+                    resp_str = json.dumps(fr.response) if isinstance(fr.response, dict) else str(fr.response)
+                    tool_results_log.append({"name": fr.name, "response": resp_str[:500]})
+                    with tracer.start_as_current_span(f"tool.{fr.name}") as tc_span:
+                        tc_span.set_attribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, "TOOL")
+                        tc_span.set_attribute(SpanAttributes.TOOL_NAME, fr.name)
+                        matching_call = next((c for c in tool_calls_log if c["name"] == fr.name), {})
+                        tc_span.set_attribute(SpanAttributes.INPUT_VALUE, json.dumps(matching_call.get("args", {})))
+                        tc_span.set_attribute(SpanAttributes.OUTPUT_VALUE, resp_str[:500])
 
-        for event in response:
-            if event.is_final_response() and event.content:
-                raw_text = event.content.parts[0].text
-                masked_text = await _mask_response(raw_text)
-                print("Agent: ", masked_text)
-                messages.append({"role": "assistant", "content": masked_text})
+                if event.is_final_response() and event.content:
+                    raw_text = event.content.parts[0].text
+                    masked_text = await _mask_response(raw_text)
+
+                    turn_span.set_attribute(SpanAttributes.OUTPUT_VALUE, masked_text)
+                    if tool_calls_log:
+                        turn_span.set_attribute("llm.tool_calls", json.dumps(tool_calls_log))
+                    if tool_results_log:
+                        turn_span.set_attribute("llm.tool_results", json.dumps(tool_results_log))
+
+                    usage = event.usage_metadata
+                    if usage:
+                        prompt_tokens = usage.prompt_token_count or 0
+                        completion_tokens = usage.candidates_token_count or 0
+                        thinking_tokens = usage.thoughts_token_count or 0
+                        total_tokens = usage.total_token_count or 0
+                        turn_span.set_attribute(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
+                        turn_span.set_attribute(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_tokens)
+                        turn_span.set_attribute(SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens)
+                        turn_span.set_attribute("llm.token_count.thinking", thinking_tokens)
+                        # Gemini 2.5 Flash pricing: $0.075/1M input, $0.30/1M output
+                        cost_prompt = (prompt_tokens * 0.075) / 1_000_000
+                        cost_completion = (completion_tokens * 0.30) / 1_000_000
+                        turn_span.set_attribute(SpanAttributes.LLM_COST_PROMPT, cost_prompt)
+                        turn_span.set_attribute(SpanAttributes.LLM_COST_COMPLETION, cost_completion)
+                        turn_span.set_attribute(SpanAttributes.LLM_COST_TOTAL, cost_prompt + cost_completion)
+
+                    print("Agent: ", masked_text)
+                    messages.append({"role": "assistant", "content": masked_text})
 
     save_memory(messages, USER_ID)
 
