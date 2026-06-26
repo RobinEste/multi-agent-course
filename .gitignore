@@ -11,3 +11,4 @@ __pycache__/
 # Virtual environments (regenerable, huge)
 .venv/
 venv/
+market-sizing-sdk/

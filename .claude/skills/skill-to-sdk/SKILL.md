@@ -122,7 +122,9 @@ file-producing skill will write files when it won't.
 6. If a file-creation/output mechanism is available, save everything to the
    outputs location, zip it, and present it for download. Otherwise show the
    files inline.
-7. Give the user the run instructions: install deps, copy `.env.example` to
+7. Give the user the run instructions: create and activate a virtual
+   environment (`python -m venv .venv` then `source .venv/bin/activate`, or
+   `.venv\Scripts\activate` on Windows), install deps, copy `.env.example` to
    `.env` and add their key, then `python app.py "a question"`.
 
 ## Quick sanity check before delivering

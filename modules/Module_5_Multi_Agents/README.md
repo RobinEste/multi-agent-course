@@ -40,6 +40,8 @@ agents stop being standalone chatbots and start coordinating as a system.
 ```
 Module_5_Multi_Agents/
 │
+├── how_skills_work_under_the_hood.ipynb               # Notebook: skills, demystified, on the Anthropic SDK
+│
 └── advance-customer-support-agent-feature-A2A-MCP-ADK/   # Hands-on capstone project
     ├── cs_agent/          # The agent package — ADK agents, A2A infra, security pipeline
     │   ├── agents/        # ADK agent definitions (Judge, Mask, Sequential pipeline)
@@ -51,9 +53,37 @@ Module_5_Multi_Agents/
     └── README.md          # Full setup + walkthrough for the project
 ```
 
-> **Note:** This module is taught primarily through the hands-on project below rather than a set of
-> standalone notebooks. The other modules' `study-material/` lesson files are the conceptual
-> companion; here the system *is* the lesson.
+> **Note:** This module is taught primarily through the hands-on project below, with one supporting
+> notebook (see *Companion Notebook* next). The other modules' `study-material/` lesson files are the
+> conceptual companion; here the system *is* the lesson.
+
+---
+
+## Companion Notebook: How Skills Work Under the Hood
+
+**[`how_skills_work_under_the_hood.ipynb`](how_skills_work_under_the_hood.ipynb)**
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rkarmaka/multi-agent-course/blob/main/modules/Module_5_Multi_Agents/how_skills_work_under_the_hood.ipynb)
+
+A short, runnable peek behind the curtain of **Agent Skills**. It takes the `market-sizing` skill and
+shows that a skill is — at its core — **just a markdown file of instructions**, then rebuilds its
+behavior from scratch on the raw **Anthropic Python SDK**, one step at a time:
+
+- A skill is a `SKILL.md` file: **frontmatter** (routing metadata) + **body** (the instructions).
+- Stripping the frontmatter and passing the body as the **`system`** prompt is the whole trick.
+- What an Anthropic API call actually looks like — `system` vs `messages`, and the response's
+  **content blocks**.
+- Why the model is **stateless**, and how a `history` list gives a conversation memory.
+- An **ablation** (same question, no system prompt) that makes visible exactly what the skill buys you.
+- How running a skill *in Claude Code* differs from running it *via the SDK* (triggering, tools, memory).
+
+It's **Colab-ready**: hit the badge above (or *Runtime → Run all*) — it installs the SDK, pulls the
+skill file from GitHub, and reads your `ANTHROPIC_API_KEY` from Colab **Secrets**. Running locally
+works too; the setup cells fall back to a `.env` file or a hidden prompt.
+
+> **Why it's here:** Module 5 is about coordinating *many* agents, but every agent in the capstone is
+> still driven by instructions fed to a model. This notebook grounds that intuition at the smallest
+> possible scale — one instruction file, one API call — before you scale up to ADK agents talking over
+> A2A and MCP.
 
 ---
 
