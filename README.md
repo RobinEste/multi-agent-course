@@ -34,7 +34,7 @@ Welcome to the official course repository for **Agent Engineering Bootcamp: Deve
 5. [Module 5 — Multi-Agent Systems (MCP · A2A · ADK)](#module-5--multi-agent-systems-mcp--a2a--adk)
 6. [Module 6 — Voice Agents & LLM Optimization](#module-6--voice-agents--llm-optimization)
 
-**Also on this page:** [How to use this repo](#how-to-use-this-repo) · [Technology stack](#technology-stack) · [What you'll build](#what-youll-build)
+**Also on this page:** [How to use this repo](#how-to-use-this-repo) · [Technology stack](#technology-stack) · [What you'll build](#what-youll-build) · [FDE Track](#forward-deployed-engineer-fde-track)
 
 ### 🗺️ Course at a glance
 
@@ -241,6 +241,23 @@ A Claude Code kit that runs a full sub-agent product team on your laptop — sco
 [![Open Sprint Zero](https://img.shields.io/badge/▶%20Open-Sprint%20Zero-6E40C9?style=for-the-badge)](Full_Stack_Projects/Sprint_Zero)
 
 Built by [Yousuf Alvi](https://github.com/yousuf-alvi) and [Hamza Farooq](https://www.linkedin.com/in/hamzafarooq/).
+
+---
+
+## Forward Deployed Engineer (FDE) Track
+
+> **A separate, project-only track: ship complete full-stack AI products, end to end.**
+
+Where the six modules above build your understanding concept by concept, the **[FDE track](FDE/README.md)** is pure shipping. "Forward Deployed Engineer" is the new moat in AI — the engineer who takes a capability all the way to a shipped product, from the code in the browser down to the model running on their own servers. Each assignment is a real product built in an environment you *don't* control: you build the frontend, the agent logic, the model serving, the caching, and the deployment, conform to a fixed API contract, and prove it works.
+
+Every FDE project is graded against a **measurable scoring rubric** plus a short video demo — not vibes. Each assignment ships an `eval/` folder with a `rubric.json` and an `eval.py` that scores your running project, captures evidence, and produces a **Product Evaluation** report (`PRODUCT_EVAL.md`) you submit with a 60–90s demo.
+
+| # | Assignment | You build | Core skills |
+|---|-----------|-----------|-------------|
+| 1 | [**Live Translate**](FDE/Assignment_1_Live_Translate/) | A two-service backend (Node gateway + Python AI service) behind a provided browser widget that live-translates any page EN → Mexican Spanish | LLM calls, two-tier caching, structured logging + tracing, service separation, SLA gate, Fly.io deploy |
+| … | _more coming_ | | |
+
+[**Explore the FDE track →**](FDE/README.md) · [See a sample scorecard →](FDE/Assignment_1_Live_Translate/README.md#sample-scorecard)
 
 ---
 
