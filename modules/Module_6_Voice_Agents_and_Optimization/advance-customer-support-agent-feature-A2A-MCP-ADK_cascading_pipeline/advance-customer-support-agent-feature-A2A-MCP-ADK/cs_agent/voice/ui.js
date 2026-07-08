@@ -31,6 +31,46 @@
   let node = null, calls = [];   // current assistant message + its tool calls
   let userBubble = null;         // the growing "You" bubble for the combined query
 
+  // ---- caption reveal (fake text/audio sync, since Gemini TTS gives no timing) --
+  // Each `caption` = one sentence + the exact playback duration of its audio clip.
+  // We reveal its words across that duration, anchored to when the clip starts
+  // playing (playCtx clock), so words surface roughly as they're spoken.
+  let segQueue = [], curSeg = null, awaitCaption = null, revealedText = '', revealRAF = 0;
+  let revealNode = null;      // stable target for the reveal (outlives global `node`)
+  let pendingFinal = null;    // authoritative full text, applied once reveal drains
+
+  function resetReveal() {
+    segQueue = []; curSeg = null; awaitCaption = null; revealedText = '';
+    revealNode = null; pendingFinal = null;
+    if (revealRAF) { cancelAnimationFrame(revealRAF); revealRAF = 0; }
+  }
+
+  function ensureReveal() {
+    if (revealRAF) return;
+    const step = () => {
+      revealRAF = 0;
+      if (!curSeg && segQueue.length && segQueue[0].startAt != null) curSeg = segQueue.shift();
+      const bubble = revealNode && revealNode.querySelector('.bubble');
+      if (curSeg && playCtx) {
+        const now = playCtx.currentTime;
+        let shown = curSeg.words.length;
+        if (curSeg.durSec > 0) {
+          const frac = Math.max(0, Math.min(1, (now - curSeg.startAt) / curSeg.durSec));
+          shown = Math.floor(frac * curSeg.words.length);
+        }
+        if (bubble) bubble.innerHTML = md(revealedText + curSeg.words.slice(0, shown).join(''));
+        if (now >= curSeg.startAt + curSeg.durSec) { revealedText += curSeg.text; curSeg = null; }
+        scroll();
+      }
+      if (curSeg || segQueue.length) {
+        revealRAF = requestAnimationFrame(step);
+      } else if (pendingFinal != null && bubble) {
+        bubble.innerHTML = md(pendingFinal); pendingFinal = null; scroll();  // reveal done
+      }
+    };
+    revealRAF = requestAnimationFrame(step);
+  }
+
   // ---- self-injected UI ---------------------------------------------------
   const inwrap = document.querySelector('.inwrap');
   if (!inwrap) return;
@@ -75,8 +115,11 @@
     src.buffer = audio;
     src.connect(playCtx.destination);
     if (playCursor < playCtx.currentTime) playCursor = playCtx.currentTime + 0.05;
-    src.start(playCursor);
+    const startTime = playCursor;
+    src.start(startTime);
     playCursor += audio.duration;
+    // the first audio chunk after a caption pins that sentence's reveal start
+    if (awaitCaption) { awaitCaption.startAt = startTime; awaitCaption = null; ensureReveal(); }
     if (!agentSpeaking) lastPlayStart = now();
     agentSpeaking = true;
     activeSources.push(src);
@@ -92,6 +135,7 @@
     activeSources = [];
     playCursor = 0;
     agentSpeaking = false;
+    resetReveal();   // drop queued captions — their audio will never play now
   }
 
   // ---- capture + VAD (user speech) ----------------------------------------
@@ -189,15 +233,29 @@
       scroll();
     } else if (d.type === 'processing') {
       calls = [];
-      if (!node) node = addAssistant();     // shows "thinking…"
+      resetReveal();                         // new answer — clear any prior reveal state
+      if (!node) node = addAssistant();      // shows "thinking…"
       setStatus('thinking…');
     } else if (d.type === 'tool_call') {
       calls.push({ name: d.name, args: d.args, result: null });
+    } else if (d.type === 'caption') {
+      // one sentence + its audio duration — queue it; the first audio chunk that
+      // follows pins its start time, then ensureReveal() paces the words to the clip.
+      if (!node) node = addAssistant();
+      revealNode = node;
+      segQueue.push({ text: d.text || '', words: (d.text || '').match(/\S+\s*/g) || [],
+                      durSec: (d.dur_ms || 0) / 1000, startAt: null });
+      awaitCaption = segQueue[segQueue.length - 1];
     } else if (d.type === 'response_text') {
       if (!node) node = addAssistant();
-      renderSteps(node.querySelector('.steps-host'), d.tool_calls || calls);
-      node.querySelector('.bubble').innerHTML = md(d.text || '');
+      const host = node.querySelector('.steps-host');
+      host.innerHTML = '';
+      renderSteps(host, d.tool_calls || calls);
       userBubble = null;   // answer delivered — next words start a NEW "You" bubble
+      // If the word-by-word reveal is still catching up to the audio, hand it the
+      // authoritative full text to apply when it finishes; else set it now.
+      if (curSeg || segQueue.length) { pendingFinal = d.text || ''; }
+      else { node.querySelector('.bubble').innerHTML = md(d.text || ''); }
       scroll();
     } else if (d.type === 'blocked') {
       if (!node) node = addAssistant();

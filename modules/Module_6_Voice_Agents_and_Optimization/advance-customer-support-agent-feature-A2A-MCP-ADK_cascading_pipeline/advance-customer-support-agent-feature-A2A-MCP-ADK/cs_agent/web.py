@@ -27,10 +27,11 @@ for p in (_this_dir, _project_root):
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from google.genai import types
 from google.adk.agents.llm_agent import LlmAgent
+from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from toolbox_core import ToolboxSyncClient
@@ -89,7 +90,13 @@ async def _judge(text: str) -> bool:
     return "BLOCKED" not in (verdict or "").upper()
 
 
+# MASK=false skips the A2A Masker entirely (no round-trip, no latency). Default true.
+MASK_ENABLED = os.getenv("MASK", "true").strip().lower() in ("1", "true", "yes", "on")
+
+
 async def _mask(text: str) -> str:
+    if not MASK_ENABLED:
+        return text
     try:
         masked = await call_a2a_agent(query=text, host=A2A_MASK_HOST, port=A2A_MASK_PORT)
         return (masked or text).lower() if masked else text
@@ -172,6 +179,90 @@ async def chat(req: ChatReq):
     # Layer 3 — A2A Data Masker on the way out
     masked = await _mask(final_text)
     return {"ok": True, "blocked": False, "response": masked, "tool_calls": tool_calls}
+
+
+@app.post("/api/chat/stream")
+async def chat_stream(req: ChatReq):
+    """Same pipeline as /api/chat, but streams the reply as newline-delimited JSON.
+
+    Emits: {"type":"tool_call"|"delta"|"final"|"blocked"|"error", ...}.
+    `delta` carries the cumulative text so far (the client just re-renders it).
+    Streaming only happens when MASK is off — you can't stream a reply you must
+    mask as a whole, so with MASK=true this sends a single `final` chunk instead.
+    """
+    runner = _runners.get(req.user_id)
+    if runner is None:
+        return JSONResponse({"ok": False, "error": "Not logged in."}, status_code=401)
+
+    async def gen():
+        # Layer 1 — local sanitization
+        try:
+            clean = sanitize_input(req.message)
+        except ValueError as exc:
+            yield json.dumps({"type": "blocked", "stage": "sanitizer",
+                              "response": f"Input rejected by sanitizer: {exc}"}) + "\n"
+            return
+
+        # Layer 2 — A2A Security Judge
+        try:
+            if not await _judge(clean):
+                yield json.dumps({"type": "blocked", "stage": "judge",
+                                  "response": "Blocked by the A2A Security Judge "
+                                              "(possible injection/unsafe input)."}) + "\n"
+                return
+        except Exception as exc:
+            yield json.dumps({"type": "error", "message": f"Security Judge unreachable: {exc}"}) + "\n"
+            return
+
+        content = types.Content(role="user", parts=[types.Part(text=clean)])
+        tool_calls, display = [], ""
+
+        if not MASK_ENABLED:
+            # STREAM: push each partial delta as the agent generates it.
+            seen_partial = False
+            async for event in runner.run_async(
+                    user_id=req.user_id, session_id=f"session_{req.user_id}",
+                    new_message=content, run_config=RunConfig(streaming_mode=StreamingMode.SSE)):
+                for fc in (event.get_function_calls() or []):
+                    tool_calls.append({"name": fc.name, "args": dict(fc.args or {}), "result": None})
+                    yield json.dumps({"type": "tool_call", "name": fc.name,
+                                      "args": dict(fc.args or {})}) + "\n"
+                for fr in (event.get_function_responses() or []):
+                    rs = json.dumps(fr.response) if isinstance(fr.response, dict) else str(fr.response)
+                    for tc in reversed(tool_calls):
+                        if tc["name"] == fr.name and tc["result"] is None:
+                            tc["result"] = rs[:800]
+                            break
+                txt = None
+                if event.content and event.content.parts and event.content.parts[0].text:
+                    txt = event.content.parts[0].text
+                if txt is None:
+                    continue
+                if getattr(event, "partial", False):
+                    seen_partial = True
+                elif seen_partial:
+                    continue          # redundant final aggregate that repeats the partials
+                display += txt
+                yield json.dumps({"type": "delta", "text": display}) + "\n"
+            yield json.dumps({"type": "final", "text": display, "tool_calls": tool_calls}) + "\n"
+        else:
+            # MASK on -> can't stream; run to completion, mask, send one final chunk.
+            async for event in runner.run_async(
+                    user_id=req.user_id, session_id=f"session_{req.user_id}", new_message=content):
+                for fc in (event.get_function_calls() or []):
+                    tool_calls.append({"name": fc.name, "args": dict(fc.args or {}), "result": None})
+                for fr in (event.get_function_responses() or []):
+                    rs = json.dumps(fr.response) if isinstance(fr.response, dict) else str(fr.response)
+                    for tc in reversed(tool_calls):
+                        if tc["name"] == fr.name and tc["result"] is None:
+                            tc["result"] = rs[:800]
+                            break
+                if event.is_final_response() and event.content:
+                    display = event.content.parts[0].text or ""
+            masked = await _mask(display)
+            yield json.dumps({"type": "final", "text": masked, "tool_calls": tool_calls}) + "\n"
+
+    return StreamingResponse(gen(), media_type="application/x-ndjson")
 
 
 # Voice cascade (STT -> same pipeline as /api/chat -> TTS) — all logic lives in
@@ -331,6 +422,7 @@ function addAssistant(){
 }
 function renderSteps(host,calls){
   if(!calls||!calls.length) return;
+  host.innerHTML='';   // idempotent: replace the block, never stack duplicates
   const d=el(`<details class="steps"><summary>Tool steps<span class="pill">${calls.length}</span></summary></details>`);
   calls.forEach(c=>{
     const args=Object.entries(c.args||{}).map(([k,v])=>`${k}=${JSON.stringify(v)}`).join(', ');
@@ -386,14 +478,33 @@ async function send(){
   const node=addAssistant();
   const bubble=node.querySelector('.bubble');
   try{
-    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+    const r=await fetch('/api/chat/stream',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({user_id:USER,message:text})});
-    const d=await r.json();
-    if(!d.ok){bubble.textContent=d.error||'Error';}
+    if(!r.ok){ const d=await r.json().catch(()=>({})); bubble.textContent=d.error||'Error'; }
     else{
-      if(d.blocked) node.classList.add('blocked');
-      renderSteps(node.querySelector('.steps-host'),d.tool_calls);
-      bubble.innerHTML=md(d.response||'');
+      const reader=r.body.getReader(), dec=new TextDecoder();
+      let buf='', calls=[];
+      // Read the newline-delimited JSON stream; re-render the bubble on each delta.
+      while(true){
+        const {done,value}=await reader.read();
+        if(done) break;
+        buf+=dec.decode(value,{stream:true});
+        let nl;
+        while((nl=buf.indexOf('\n'))>=0){
+          const line=buf.slice(0,nl).trim(); buf=buf.slice(nl+1);
+          if(!line) continue;
+          let d; try{ d=JSON.parse(line); }catch(e){ continue; }
+          if(d.type==='tool_call'){ calls.push({name:d.name,args:d.args,result:null}); }
+          else if(d.type==='delta'){ bubble.innerHTML=md(d.text||''); scroll(); }
+          else if(d.type==='final'){
+            const host=node.querySelector('.steps-host'); host.innerHTML='';
+            renderSteps(host, d.tool_calls||calls);
+            bubble.innerHTML=md(d.text||''); scroll();
+          }
+          else if(d.type==='blocked'){ node.classList.add('blocked'); bubble.textContent=d.response; }
+          else if(d.type==='error'){ bubble.textContent='Error: '+d.message; }
+        }
+      }
     }
   }catch(e){bubble.textContent='Network error: '+e;}
   document.getElementById('send').disabled=false; scroll();
@@ -420,9 +531,11 @@ inp.addEventListener('input',()=>{inp.style.height='auto';inp.style.height=Math.
 
 def main():
     import uvicorn
+    from cs_agent.voice.router import print_config_warnings
     host = os.getenv("WEB_HOST", "127.0.0.1")
     port = int(os.getenv("WEB_PORT", "8000"))
-    print(f"Customer Support web UI → http://{host}:{port}")
+    print(f"Customer Support web UI -> http://{host}:{port}")
+    print_config_warnings()
     uvicorn.run(app, host=host, port=port, log_level="warning")
 
 
