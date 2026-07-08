@@ -1,26 +1,21 @@
-"""One-command reproduction of the benchmark results.
+"""Run the whole benchmark end to end — gather, grade, and chart — in one command.
 
-The pipeline has two phases; this script can run either or both:
+With the live stack up (see README section 5), `python reproduce.py` does everything:
 
-  PHASE A — GATHER  (needs the live voice stack up: Postgres, Toolbox, A2A judge,
-                     and both web servers — see README "Start the stack").
-      run_bench.py drives BOTH architectures with one neutral stopwatch, reseeding
-      the DB to a clean baseline before/between passes, and writes raw run records
-      to runs/<arch>/qNN_rN.json.
-
-  PHASE B — GRADE + REPORT  (needs only OPENAI_API_KEY in .env; no servers).
-      each_question_acc.py   -> deterministic tool scores + LLM-judge response scores
-      final_metrics.py       -> per-arch summary table
-      compare.py             -> cross-arch table image + charts
+    1. GATHER  — run BOTH architectures (cascade + s2s), writing raw runs to runs/<arch>/
+                 (reseeds the DB to a clean baseline before/between passes)
+    2. GRADE   — score every run: deterministic tools + LLM judge (accuracy + completeness)
+    3. FINAL   — roll each arch up into a summary table
+    4. COMPARE — build the comparison table image + charts
 
 Usage:
-    python reproduce.py                 # Phase B only: grade (resume) -> report
-    python reproduce.py --fresh         # wipe cached grades, re-judge everything, report
-    python reproduce.py --with-bench    # Phase A + B  (SERVERS MUST BE UP)
-    python reproduce.py --with-bench --fresh   # full clean reproduction from audio
+    python reproduce.py               # full pipeline (servers MUST be up); resumes existing runs
+    python reproduce.py --fresh       # clear old runs + grades, gather & judge everything anew
+    python reproduce.py --grade-only  # skip gathering (no servers needed) — just re-grade the
+                                      #   runs on disk and rebuild the tables/charts
 
-Everything runs through THIS interpreter (sys.executable), so activate the single
-venv that has requirements.txt installed and every step uses the same Python.
+Run it with the venv from requirements.txt active, so this one interpreter
+(sys.executable) drives every step.
 """
 
 import argparse
@@ -40,31 +35,40 @@ def run(title: str, *script_args: str) -> None:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Reproduce the voice-agent benchmark.")
-    ap.add_argument("--with-bench", action="store_true",
-                    help="run Phase A (run_bench.py) first — the live stack MUST be up")
+    ap = argparse.ArgumentParser(description="Run the voice-agent benchmark end to end.")
     ap.add_argument("--fresh", action="store_true",
-                    help="delete cached graded/ files so every run is re-judged")
-    ap.add_argument("--repeats", type=int, default=3, help="runs per query for Phase A (default 3)")
+                    help="delete existing runs + grades so everything is gathered & judged anew")
+    ap.add_argument("--grade-only", action="store_true",
+                    help="skip gathering (no servers needed); just grade existing runs + rebuild charts")
+    ap.add_argument("--repeats", type=int, default=3, help="runs per query when gathering (default 3)")
     args = ap.parse_args()
-
-    if args.with_bench:
-        run("PHASE A — gather runs (both archs, fresh reseed)",
-            "run_bench.py", "--arch", "both", "--reseed", "--repeats", str(args.repeats))
 
     if args.fresh:
         for arch in ARCHS:
-            graded = HERE / "runs" / arch / "final_metric" / "graded"
+            base = HERE / "runs" / arch
+            for f in base.glob("q*_r*.json"):
+                f.unlink()
+            graded = base / "final_metric" / "graded"
             if graded.exists():
                 shutil.rmtree(graded)
-                print(f"  wiped {graded}")
+        print("  --fresh: cleared existing runs + graded cache")
 
+    # 1. GATHER — drive both servers (run_bench skips runs already on disk unless --fresh cleared them)
+    if not args.grade_only:
+        run("STEP 1/4 — gather runs from BOTH servers (reseed each pass)",
+            "run_bench.py", "--arch", "both", "--reseed", "--repeats", str(args.repeats))
+
+    # 2. GRADE — deterministic tools + LLM judge
     for arch in ARCHS:
-        run(f"PHASE B1 — grade {arch}  (deterministic tools + LLM judge)",
+        run(f"STEP 2/4 — grade {arch}  (deterministic tools + LLM judge)",
             "each_question_acc.py", "--arch", arch)
+
+    # 3. FINAL — per-arch summary
     for arch in ARCHS:
-        run(f"PHASE B2 — roll up final metrics: {arch}", "final_metrics.py", "--arch", arch)
-    run("PHASE B3 — cross-arch comparison table + charts", "compare.py")
+        run(f"STEP 3/4 — roll up final metrics: {arch}", "final_metrics.py", "--arch", arch)
+
+    # 4. COMPARE — cross-arch table + charts
+    run("STEP 4/4 — comparison table + charts", "compare.py")
 
     print("\nDONE. Results:")
     print("  runs/<arch>/final_metric/  — per-question + final metrics (json/csv/md)")

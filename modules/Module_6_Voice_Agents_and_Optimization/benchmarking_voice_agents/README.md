@@ -81,29 +81,28 @@ OPENAI_JUDGE_MODEL=gpt-5
 
 ### Option A — one command (recommended)
 
+**With both servers running (see §5), this does everything** — runs both architectures,
+writes the runs, grades them, rolls up metrics, and builds the charts:
+
 ```bash
-# Phase B only: grade the existing runs and rebuild the tables (needs OpenAI key, no servers)
-python reproduce.py
-
-# re-judge everything from scratch (deletes cached grades first)
-python reproduce.py --fresh
-
-# full reproduction from audio — ALSO gathers fresh runs (SERVERS MUST BE UP, see §5)
-python reproduce.py --with-bench --fresh
+python reproduce.py               # full pipeline (servers MUST be up); resumes existing runs
+python reproduce.py --fresh       # clear old runs + grades, then gather & judge everything anew
+python reproduce.py --grade-only  # NO servers needed — just re-grade the runs on disk + rebuild charts
 ```
 
-### Option B — step by step
+`reproduce.py` runs, in order: `run_bench.py` (both archs) → `each_question_acc.py` (grade
+both) → `final_metrics.py` (both) → `compare.py`. If a server is down it stops immediately
+with a preflight message telling you exactly what to start.
+
+### Option B — step by step (same thing, by hand)
 
 ```bash
-# PHASE A — gather runs (needs the live stack, §5). Reseeds the DB before/between passes.
-python run_bench.py --arch both --reseed --repeats 3
-
-# PHASE B — grade + report (needs only the OpenAI key)
-python each_question_acc.py --arch cascade     # deterministic tools + LLM judge
+python run_bench.py --arch both --reseed --repeats 3   # gather (needs the live stack, §5)
+python each_question_acc.py --arch cascade             # grade: deterministic tools + LLM judge
 python each_question_acc.py --arch s2s
-python final_metrics.py --arch cascade         # roll up per-arch summary
+python final_metrics.py --arch cascade                 # roll up per-arch summary
 python final_metrics.py --arch s2s
-python compare.py                              # cross-arch table + charts
+python compare.py                                      # cross-arch table + charts
 ```
 
 **Where results land:** `runs/<arch>/final_metric/` (per-question + final metrics, as

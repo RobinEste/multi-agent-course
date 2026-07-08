@@ -38,6 +38,7 @@ Deps:  pip install websockets psycopg2-binary
 import argparse
 import asyncio
 import json
+import socket
 import time
 import urllib.request
 import wave
@@ -323,6 +324,36 @@ def write_record(rec: dict):
     return path
 
 
+def _port_up(host: str, port: int, timeout: float = 1.5) -> bool:
+    try:
+        with socket.create_connection((host, int(port)), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def preflight(archs: list) -> None:
+    """Fail fast with a clear message if the live stack isn't up. Running to the charts
+    depends on these being reachable — better to say exactly what's missing now than to
+    hang or error cryptically mid-run."""
+    checks = [("Postgres", DB["host"], DB["port"]),
+              ("Toolbox", "127.0.0.1", 5000),
+              ("A2A judge", "127.0.0.1", 10002)]
+    for a in archs:
+        host, port = TARGETS[a]["http"].split("//", 1)[1].split(":")
+        checks.append((f"{a} server", host, int(port)))
+    down = [(n, h, p) for n, h, p in checks if not _port_up(h, p)]
+    if down:
+        print("\nPREFLIGHT FAILED — the live stack isn't fully up. Start it first "
+              "(README section 5):")
+        for n, h, p in down:
+            print(f"   [DOWN] {n}  ({h}:{p})")
+        print("   Bring up Postgres, Toolbox :5000, A2A judge :10002, and BOTH capstone\n"
+              "   servers (cascade :8000 + s2s :8001) with MASK=false, then re-run.")
+        raise SystemExit(1)
+    print("preflight OK — " + ", ".join(n for n, _, _ in checks) + " all reachable")
+
+
 async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--arch", choices=["cascade", "s2s", "both"], default="both")
@@ -337,6 +368,8 @@ async def main():
     clips = [q for q in MANIFEST["queries"] if not args.only or q["id"] == args.only]
     if not clips:
         raise SystemExit(f"no clip matches --only {args.only}")
+
+    preflight(archs)   # verify servers/DB are reachable before doing anything
 
     for i, arch in enumerate(archs):
         # Each architecture must start from the SAME freshly-seeded DB or the comparison is
