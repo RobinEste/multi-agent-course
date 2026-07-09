@@ -1,0 +1,11 @@
+# Voice-agent benchmark — one venv runs the WHOLE pipeline (gather + grade + charts).
+#   python -m venv .venv && . .venv/Scripts/activate   (Windows: .venv\Scripts\activate)
+#   pip install -r requirements.txt
+
+websockets        # run_bench.py  — drive both voice servers over WebSocket
+psycopg2-binary   # run_bench.py  — reseed Postgres to a clean baseline between passes
+openai            # bench_grading.py — LLM-as-judge (response accuracy + completeness)
+python-dotenv     # load benchmark/.env (OPENAI_API_KEY + judge model)
+matplotlib        # compare.py — comparison table image + charts
+numpy             # compare.py — grouped-bar layout
+miniaudio         # convert_audio.py — decode source MP3 -> 16 kHz mono PCM WAV

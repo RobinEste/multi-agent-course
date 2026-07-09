@@ -1,0 +1,15 @@
+# Benchmark run outputs — regenerable, not source
+results/
+runs/
+out/
+*.jsonl
+*.csv
+*.log
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Keep the dataset (audio/*.wav + audio/source_mp3/*.mp3), manifest, queries, code
