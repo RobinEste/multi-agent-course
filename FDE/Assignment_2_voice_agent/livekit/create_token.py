@@ -20,7 +20,15 @@ import os
 from livekit import api
 
 
+def _require_env(names: list[str]) -> None:
+    missing = [name for name in names if not os.getenv(name)]
+    if missing:
+        joined = ", ".join(missing)
+        raise SystemExit(f"Missing required environment variable(s): {joined}")
+
+
 def main() -> None:
+    _require_env(["LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"])
     parser = argparse.ArgumentParser(description="Create a LiveKit room join token")
     parser.add_argument("--identity", required=True, help="Unique participant identity")
     parser.add_argument("--name", default=None, help="Human-readable participant name")
