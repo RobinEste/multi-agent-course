@@ -21,7 +21,7 @@
 
 ---
 
-Welcome to the official course repository for **Agent Engineering Bootcamp: Developers Edition** — all the code, notebooks, exercises, and project materials used throughout the course. It's a structured journey from deployment efficiency to validated agentic systems: the agent harness and ReAct orchestration, LLM optimization, hybrid memory (RAG + Knowledge Graphs), multi-agent coordination, and the evaluation discipline that proves it all works.
+Welcome to the official course repository for **Agent Engineering Bootcamp: Developers Edition** — all the code, notebooks, exercises, and project materials used throughout the course. It's a structured journey from deployment efficiency to validated agentic systems: the agent harness and ReAct orchestration, voice agents, hybrid memory (RAG + Knowledge Graphs), multi-agent coordination, and the evaluation discipline that proves it all works.
 
 ## Quick Links
 
@@ -32,7 +32,7 @@ Welcome to the official course repository for **Agent Engineering Bootcamp: Deve
 3. [Module 3 — Agentic RAG, Semantic Cache & Knowledge Graphs](#module-3--agentic-rag-semantic-cache--knowledge-graphs)
 4. [Module 4 — Evaluation & Guardrails](#module-4--evaluation--guardrails)
 5. [Module 5 — Multi-Agent Systems (MCP · A2A · ADK)](#module-5--multi-agent-systems-mcp--a2a--adk)
-6. [Module 6 — Voice Agents & LLM Optimization](#module-6--voice-agents--llm-optimization)
+6. [Module 6 — Voice Agents](#module-6--voice-agents)
 
 **Also on this page:** [How to use this repo](#how-to-use-this-repo) · [Technology stack](#technology-stack) · [What you'll build](#what-youll-build) · [FDE Track](#forward-deployed-engineer-fde-track)
 
@@ -45,7 +45,7 @@ Welcome to the official course repository for **Agent Engineering Bootcamp: Deve
 | 3️⃣ | **Agentic RAG, Semantic Cache & KGs** | Retrieval as a tool the agent chooses | A RAG-vs-KG eval app + a cited video-moment RAG |
 | 4️⃣ | **Evaluation & Guardrails** | Ship with proof, not hope | An eval + guardrail harness |
 | 5️⃣ | **Multi-Agent Systems (MCP · A2A · ADK)** | When many agents beat one | A coordinated multi-agent system |
-| 6️⃣ | **Voice Agents & LLM Optimization** | An agent that talks — fast and cheap | A real-time voice agent |
+| 6️⃣ | **Voice Agents** | One agent, two ways to make it talk | A real-time voice agent, benchmarked cascade vs. speech-to-speech |
 
 ---
 
@@ -192,11 +192,11 @@ python -m cs_agent.a2a.run_servers   # start the A2A servers, then run the CLI
 
 ---
 
-### Module 6 — Voice Agents & LLM Optimization
+### Module 6 — Voice Agents
 
-Ship an agent that talks — and survives real conversation — then make the inference behind it fast and cheap enough to run.
+Ship an agent that talks — and survives real conversation — then benchmark two different architectures for doing it head-to-head.
 
-**Key topics:** the voice stack (STT → LLM → TTS) · turn-taking & end-of-turn detection · latency budgeting, streaming & barge-in · tool calling inside a voice loop · provider landscape (Deepgram, ElevenLabs, OpenAI Realtime, Vapi, Retell) · quantization (4-bit / 8-bit, FP4 vs. NF4) · KV caching · speculative decoding · inference metrics (TTFT, ITL, throughput)
+**Key topics:** the voice stack (STT → LLM → TTS) · turn-taking & end-of-turn detection · latency budgeting, streaming & barge-in · tool calling inside a voice loop · provider landscape (Deepgram, ElevenLabs, OpenAI Realtime, Vapi, Retell) · cascade vs. speech-to-speech architectures · benchmarking voice agents on cost, latency, and capability
 
 
 ---
@@ -213,7 +213,6 @@ This course goes beyond theory. Across the six modules you'll ship real, portfol
 | 🕸️ **Knowledge Graph app** + RAG-vs-KG eval | You can pick the right memory for the job and measure it |
 | 🎬 **Moment RAG** — cited answers over video | Retrieval resolves to the exact moment you cite, not just a doc |
 | 🎙️ **Voice agent** that handles real conversation | You can budget latency and survive barge-in |
-| ⚡ **Optimized LLM deployment** | Quantization, KV caching, speculative decoding |
 | ✅ **Evaluation + guardrail harness** | You ship with measurable quality and safety |
 
 Each module ends with a working artifact you built yourself.

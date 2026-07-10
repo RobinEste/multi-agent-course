@@ -34,7 +34,7 @@ The course runs in this order — six modules, "from efficiency to action":
 3. `Module_3_Agentic_RAG` — Agentic RAG, semantic caching, and Knowledge Graphs for hybrid memory.
 4. `Module_4_AI_Evaluation` — Production guardrails (Llama Guard) and trajectory-vs-outcome evaluation.
 5. `Module_5_Multi_Agents` — Multi-agent coordination and the protocol layer: MCP, A2A, and ADK.
-6. `Module_6_Voice_Agents_and_Optimization` — Voice agents (STT → LLM → TTS, turn-taking, latency budgeting) and LLM optimization (quantization, KV caching, speculative decoding).
+6. `Module_6_Voice_Agents` — Voice agents (STT → LLM → TTS, turn-taking, latency budgeting), the cascade vs. speech-to-speech architectures, and benchmarking them head-to-head.
 
 
 **Module folder structure.** Each module lives under `modules/Module_N_Name/`. The five
@@ -44,9 +44,10 @@ live in that module's `study-material/` subfolder, alongside the module's suppor
 files and pull in the supporting material for hands-on work. Copy `modules/_TEMPLATE/` (whose
 five files become the module's `study-material/`) when adding a new module.
 
-> Note: `Module_1_Agent_Loop`, `Module_2_Skills_Sub_Agents`, and `Module_5_Multi_Agents`
-> currently have the full `study-material/` set. The remaining modules so far contain only
-> supporting material (notebooks, code, READMEs); their teaching files still need to be authored.
+> Note: `Module_1_Agent_Loop`, `Module_2_Skills_Sub_Agents`, `Module_5_Multi_Agents`, and
+> `Module_6_Voice_Agents` currently have the full `study-material/` set. The remaining modules
+> so far contain only supporting material (notebooks, code, READMEs); their teaching files still
+> need to be authored.
 
 ## Teaching style
 

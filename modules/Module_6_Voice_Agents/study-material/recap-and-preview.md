@@ -23,14 +23,12 @@ STT/TTS at the edges. Speech-to-speech fuses it into one live audio model — an
 turns the Judge from a pre-agent gate into a post-hoc, concurrent check. Same security pipeline,
 new constraint: the model can now hear the user before any check has run.
 
-## Coming up (Module 06 — Voice Agents & LLM Optimization)
+## Coming up (Module 06 — Voice Agents)
 What you'll be able to do after today:
 - Explain what turn-taking and latency budgets add on top of a text agent
 - Contrast **cascade** (discrete, inspectable, additive latency) vs. **speech-to-speech**
   (fused, faster, weaker security guarantee)
 - Read the benchmark that holds the agent fixed and isolates architecture as the only variable
-- (Bonus) Explain quantization, KV caching, and speculative decoding — the inference-level
-  techniques that make any agent, voice or not, cheaper and faster to run
 
 **Watch for:** why speech-to-speech can't gate input the way cascade does — it's not a missing
 feature, it's a direct consequence of the model hearing raw audio before any text exists to

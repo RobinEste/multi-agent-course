@@ -1,8 +1,7 @@
 # Module 06 — Quiz
 
 <!-- INSTRUCTOR: The quiz-me skill uses these. Answers are here so Claude can check,
-     but the rule is Claude NEVER shows them before the learner attempts. Hint first.
-     Q6-Q8 cover the bonus optimization material — flag them as bonus when quizzing. -->
+     but the rule is Claude NEVER shows them before the learner attempts. Hint first. -->
 
 ## Q1. What two constraints does wrapping a text agent in speech add that a chat UI doesn't have?
 - Type: recall
@@ -48,34 +47,3 @@ graded by an LLM judge?
   exact text — and the judge is also shown the actual tool calls, so it can penalize a reply
   that claims an action (e.g. "I've logged your return") that no tool call actually performed.
 - **Hint:** One is a fact you can string-match; the other can be phrased many correct ways.
-
-## Q6 (bonus). Quantization drops weight precision from 16/32 bits to 4 bits. Why does that make
-the model *faster*, not just smaller?
-- Type: explain-why
-- **Answer:** Inference at each decode step is memory-bandwidth-bound — it has to move the
-  model's weights through memory for every token generated. Fewer bits per weight means less
-  data to move per step, so decoding speeds up as a direct consequence of the smaller memory
-  footprint, not despite it. The measured numbers show both: ~29.9 GB/~17.6 tok/s at full
-  precision vs. ~5.8 GB/~32.5 tok/s at 4-bit.
-- **Hint:** Ask what has to physically move through memory on every single generated token.
-
-## Q7 (bonus). Quantizing a model barely changed TTFT (0.084s → 0.073s) but nearly halved ITL
-(0.057s → 0.030s). Why did one metric move so much more than the other?
-- Type: application
-- **Answer:** TTFT is dominated by the **prefill** pass — a compute-bound pass over the *entire*
-  prompt at once, done a single time; shrinking the weights doesn't change much there. ITL is
-  the cost of each **decode** step afterward, which is memory-bandwidth-bound — moving the same
-  cached weights through memory one token at a time, over and over. A smaller model helps that
-  repeated, bandwidth-bound cost far more than the one-time compute-bound prefill.
-- **Hint:** One happens once over the whole prompt; the other happens once per output token.
-
-## Q8 (bonus). A speculative-decoding draft has a very negative average log-likelihood score
-under the main model. What does that predict, and why?
-- Type: application
-- **Answer:** A very negative score means the main model considered the draft's tokens highly
-  unlikely — poor alignment between the draft and main models. In a real implementation, the
-  main model would reject most of the draft (regenerating from near the start), so little of
-  the draft model's work gets reused — a small or negligible speedup. A score close to 0 would
-  predict the opposite: most of the draft accepted, most forward passes skipped, a large speedup.
-- **Hint:** Log-probabilities are always ≤ 0 — what does "close to 0" vs. "very negative" say
-  about how likely the main model found those tokens?

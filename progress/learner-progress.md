@@ -18,7 +18,7 @@
 | 03 — Agentic RAG, Semantic Cache & Knowledge Graphs | not started | |
 | 04 — Evaluation & Guardrails | not started | |
 | 05 — Multi-Agent Systems (MCP · A2A · ADK) | not started | |
-| 06 — Voice Agents & LLM Optimization | not started | |
+| 06 — Voice Agents | not started | |
 
 Status values: not started · in progress · completed · needs review
 

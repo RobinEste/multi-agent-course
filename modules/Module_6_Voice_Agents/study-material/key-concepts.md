@@ -38,20 +38,3 @@
   call's result (e.g. "cancel my most recent order" = list orders → find newest id → log it).
 - **Mean ± std (3 repeats)** — The benchmark's answer to sampled, non-deterministic models: run
   each query 3× so the *conclusion* reproduces even though individual scores wobble.
-- **Quantization** — Storing model weights in fewer bits (e.g. 4 instead of 16/32) to cut memory
-  and, often, increase speed, via `bitsandbytes` (`load_in_4bit=True` / `BitsAndBytesConfig`).
-- **FP4 / NF4** — Two 4-bit quantization types; NF4 ("Normal Float 4," from the QLoRA paper) is
-  tuned to how neural-network weights are actually distributed.
-- **KV cache** — Stored key/value attention projections for already-processed tokens, reused so
-  each new token only attends to the cache instead of recomputing all of history.
-- **TTFT / ITL / throughput** — Time-to-first-token (dominated by the compute-bound prefill
-  pass), inter-token latency (the memory-bandwidth-bound cost of each decode step), and tokens
-  generated per second.
-- **Speculative decoding** — A small, fast draft model proposes several tokens ahead; the large
-  model verifies the whole span in one parallel pass and accepts the correct prefix, regenerating
-  only from the first mismatch.
-- **Draft model / main model** — The fast, less-accurate proposer and the slow, accurate
-  verifier in speculative decoding.
-- **Log-likelihood verification score** — The draft's average log-probability under the main
-  model; closer to 0 means better alignment (more accepted, bigger speedup), more negative means
-  poorer alignment.

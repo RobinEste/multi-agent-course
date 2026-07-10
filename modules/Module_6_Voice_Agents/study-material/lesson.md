@@ -1,12 +1,9 @@
-# Module 06 — Voice Agents & LLM Optimization
+# Module 06 — Voice Agents
 
 <!-- INSTRUCTOR: This is the teaching content Claude walks the learner through.
      Each ## is roughly one "concept" Claude presents, then checks understanding on.
-     Source: the two capstone variants (…_cascading and …-s2s), benchmarking_voice_agents,
-     Quantization_and_KV_Caching, and Speculative_Decoding_from_scratch (the systems ARE the
-     lesson, same as Module 5) + this module's own README. Keep chunks short.
-     Part 2 (Concepts 6-8) is bonus/optional material — say so before teaching it, and it's
-     fine to stop after Concept 5 if the learner just wants the required voice-agent path. -->
+     Source: the two capstone variants (…_cascading and …-s2s) and benchmarking_voice_agents
+     (the systems ARE the lesson, same as Module 5) + this module's own README. Keep chunks short. -->
 
 ## Learning objectives
 
@@ -16,7 +13,6 @@ By the end of this module the learner can:
 - [ ] Describe the **speech-to-speech (S2S)** architecture (Gemini Live) and why its security check has to become a post-hoc, concurrent guardrail instead of a pre-agent gate
 - [ ] Argue the cascade vs. S2S trade-off using control/observability vs. latency/naturalness
 - [ ] Explain how the benchmark isolates architecture as the only variable, and what its precision/recall-split metrics actually measure
-- [ ] (Bonus) Explain quantization, KV caching, and speculative decoding, and why each makes inference cheaper or faster
 
 ## Prerequisites
 - Module 5 (protocol layer: MCP, A2A, ADK). This module doesn't introduce a new agent — it
@@ -147,75 +143,6 @@ judge?
 
 ---
 
-## Part 2 (bonus) — LLM optimization
-
-> Everything above is bottlenecked by how fast and how cheaply the underlying model can run
-> inference. These three techniques are *why* a production voice agent's latency and cost land
-> where they do. They're optional — you can stop after Concept 5 and still have finished the
-> required material.
-
-## Concept 6 — Quantization: fewer bits, same model
-
-**Quantization** stores model weights in fewer bits — 4 instead of the usual 16 or 32 — using
-`bitsandbytes` (`load_in_4bit=True`, or the fuller `BitsAndBytesConfig` to also set a
-**quantization type** and a separate **compute dtype**). Two 4-bit types matter: **FP4** and
-**NF4** ("Normal Float 4," introduced by the QLoRA paper) — NF4 is tuned for how neural network
-weights are actually distributed, so it tends to preserve quality better at the same bit width.
-
-The concrete payoff, measured on `Meta-Llama-3.1-8B-Instruct` on an A40 GPU: full precision used
-**~29.9 GB** of VRAM at **~17.6 tokens/s**; the 4-bit quantized version used **~5.8 GB** at
-**~32.5 tokens/s**. Quantization here isn't just a memory saving you pay for in speed — it's
-*both* smaller **and** faster, because there's less data to move through memory on every step.
-That's also what lets a 20B-parameter model fit on a single GPU that couldn't hold it at full
-precision.
-
-**Check:** Quantization drops precision — why would a *less precise* model run *faster*, not
-just smaller?
-
-## Concept 7 — KV caching and what it explains about the metrics
-
-Generating token N requires attention over every token before it — recomputing that from
-scratch every step would mean redoing all of history's attention math on every new token. The
-**KV cache** stores the key/value projections for tokens already processed, so each new step only
-computes attention for the *new* token against the cache, instead of recomputing everything.
-
-This is what separates two latency metrics you'll see reported together: **TTFT** (time to first
-token — dominated by the **prefill** pass over the whole prompt, where the cache is being built
-for the first time) and **ITL** (inter-token latency — the cost of each *subsequent* decode step,
-reading from a cache that already exists). Look at the same benchmark numbers again: TTFT barely
-moved between full-precision and 4-bit (0.084s → 0.073s), but ITL nearly halved (0.057s →
-0.030s). That's not a coincidence — prefill is compute-bound over the *entire* prompt at once, so
-shrinking the weights barely touches it; decode is memory-bandwidth-bound, moving the *same*
-cached weights through memory one token at a time, so a smaller model helps it far more.
-
-**Check:** Which metric would you expect quantization to improve more — TTFT or ITL — and why?
-
-## Concept 8 — Speculative decoding: draft, then verify
-
-**Speculative decoding** uses a small, fast **draft model** to propose several tokens ahead, then
-has the large, accurate **main model** verify the whole proposed span in **one parallel forward
-pass** — instead of one sequential forward pass per token. The main model accepts the correct
-prefix and only regenerates from the first token where it disagrees. When the draft is good,
-you get several tokens for the price of one expensive forward pass.
-
-The scoring mechanism: the draft's **average log-likelihood** under the main model's
-distribution. Log-probabilities are always ≤ 0, so a score close to 0 means the main model found
-the draft highly probable — good alignment, more of the draft gets accepted, bigger speedup. A
-very negative score means the main model considered the draft unlikely — it would reject most of
-it and the draft model's work was largely wasted.
-
-Be precise about what the from-scratch demo in this module actually shows: it computes that
-log-likelihood score for the *entire* draft sequence, but it does **not** implement the real
-per-token accept/reject/resample loop. That's an honest limitation, not a bug — it demonstrates
-the *scoring* mechanism speculative decoding relies on, not the mechanism that produces the
-actual wall-clock speedup. The real speedup comes specifically from only regenerating *after the
-first rejection*, which this demo doesn't do.
-
-**Check:** If the average log-likelihood score is very negative, what does that predict about
-the speedup you'd actually get in a real implementation, and why?
-
----
-
 ## Summary
 1. A voice agent is a text agent plus STT/TTS, constrained by turn-taking and a latency budget.
 2. **Cascade** keeps every stage separate and puts a real pre-agent gate in front of the model —
@@ -223,9 +150,6 @@ the speedup you'd actually get in a real implementation, and why?
    natural turn-taking — at the cost of security becoming a post-hoc, concurrent check.
 3. The benchmark holds the agent, tools, DB, and memory fixed so architecture is the only
    variable, and scores both *what fired* (deterministic) and *what was said* (LLM-judged).
-4. (Bonus) Quantization, KV caching, and speculative decoding are three separate levers on the
-   same problem — inference speed and memory — and the benchmark's own latency numbers are a
-   live example of what they buy you.
 
 ## Where to next
 - Do `exercises.md` (trace the security check across both architectures, then run the stack and
