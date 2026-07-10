@@ -342,8 +342,8 @@ Mimic a caller and agent talking:
 python talk_server.py
 ```
 
-Open `http://localhost:5173` in two browser tabs. Join one tab as `Caller Demo`
-and the other as `Aurora Agent`, then allow microphone access in both tabs.
+Open `http://localhost:5173`. Click `Join caller`, then `Join agent`, and allow
+microphone access when the browser asks.
 
 Conceptually:
 

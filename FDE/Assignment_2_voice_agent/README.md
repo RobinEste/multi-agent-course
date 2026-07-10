@@ -179,8 +179,8 @@ Mimic two people talking in the room:
 python talk_server.py
 ```
 
-Open `http://localhost:5173` in two browser tabs. Join one tab as `Caller Demo`
-and the other as `Aurora Agent`. This tests LiveKit audio between participants.
+Open `http://localhost:5173`. Click `Join caller`, then `Join agent`. This tests
+LiveKit audio between two participants in one browser UI.
 
 This does not set up SIP by itself. Real SIP requires a LiveKit SIP trunk and dispatch rule. The room demo is the right intermediate step because it shows the session/media concept before adding phone-number infrastructure.
 

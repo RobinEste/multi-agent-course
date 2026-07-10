@@ -73,7 +73,7 @@ python create_token.py --identity aurora-agent --name "Aurora Agent"
 
 The caller token represents a user or phone caller. The agent token represents the voice agent joining the same room.
 
-## Mimic A Conversation In Two Browser Tabs
+## Mimic A Conversation In The Browser
 
 Token creation does not join anyone to the room. A participant joins only when a
 client uses a token to connect and publish audio.
@@ -84,15 +84,14 @@ Start the local talk client:
 python talk_server.py
 ```
 
-Open `http://localhost:5173` in two browser tabs:
+Open `http://localhost:5173`:
 
-- In tab 1, choose `Caller Demo` and click `Join`.
-- In tab 2, choose `Aurora Agent` and click `Join`.
-- Allow microphone access in both tabs.
+- Click `Join caller` in the Caller Demo pane.
+- Click `Join agent` in the Aurora Agent pane.
+- Allow microphone access when the browser asks.
 
-Now the two tabs are real LiveKit participants in `aurora-demo-room`. Speak in one
-tab and listen in the other. This mimics the media/session layer, not the hotel
-agent brain.
+Now both panes are real LiveKit participants in `aurora-demo-room`. This mimics
+the media/session layer, not the hotel agent brain.
 
 To make Aurora answer as the actual hotel agent, the next production step is an
 agent worker that joins as `aurora-agent`, subscribes to caller audio, runs STT,

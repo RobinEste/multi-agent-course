@@ -1,18 +1,37 @@
-import { Room, RoomEvent } from "../node_modules/livekit-client/dist/livekit-client.esm.mjs";
+import { Room, RoomEvent } from "/node_modules/livekit-client/dist/livekit-client.esm.mjs";
 
-const statusEl = document.querySelector("#status");
-const identityEl = document.querySelector("#identity");
-const joinEl = document.querySelector("#join");
-const leaveEl = document.querySelector("#leave");
-const muteEl = document.querySelector("#mute");
 const participantsEl = document.querySelector("#participants");
-const audioEl = document.querySelector("#audio");
 
-let room = null;
-let muted = false;
+const clients = {
+  caller: {
+    identity: "caller-demo",
+    name: "Caller Demo",
+    room: null,
+    muted: false,
+    root: document.querySelector('[data-client="caller"]'),
+  },
+  agent: {
+    identity: "aurora-agent",
+    name: "Aurora Agent",
+    room: null,
+    muted: false,
+    root: document.querySelector('[data-client="agent"]'),
+  },
+};
 
-function setStatus(message) {
-  statusEl.textContent = message;
+function control(client, role) {
+  return client.root.querySelector(`[data-role="${role}"]`);
+}
+
+function setStatus(client, message) {
+  control(client, "status").textContent = message;
+}
+
+function setControls(client, connected) {
+  control(client, "join").disabled = connected;
+  control(client, "mute").disabled = !connected;
+  control(client, "leave").disabled = !connected;
+  client.root.classList.toggle("connected", connected);
 }
 
 function participantName(participant) {
@@ -20,75 +39,105 @@ function participantName(participant) {
 }
 
 function renderParticipants() {
-  participantsEl.innerHTML = "";
-  if (!room) return;
+  const rows = [];
+  for (const client of Object.values(clients)) {
+    if (!client.room) continue;
+    rows.push({
+      name: participantName(client.room.localParticipant),
+      side: client.name,
+      type: "local",
+    });
+    for (const participant of client.room.remoteParticipants.values()) {
+      rows.push({
+        name: participantName(participant),
+        side: client.name,
+        type: "remote",
+      });
+    }
+  }
 
-  const participants = [room.localParticipant, ...room.remoteParticipants.values()];
-  for (const participant of participants) {
-    const row = document.createElement("div");
-    row.className = "participant";
-    row.innerHTML = `
-      <strong>${participantName(participant)}</strong>
-      <span>${participant.isLocal ? "local" : "remote"}</span>
+  participantsEl.innerHTML = "";
+  if (rows.length === 0) {
+    participantsEl.innerHTML = '<div class="empty">Join one or both panes to see participants.</div>';
+    return;
+  }
+
+  for (const row of rows) {
+    const element = document.createElement("div");
+    element.className = "participant";
+    element.innerHTML = `
+      <strong>${row.name}</strong>
+      <span>${row.type} in ${row.side}</span>
     `;
-    participantsEl.appendChild(row);
+    participantsEl.appendChild(element);
   }
 }
 
-async function join() {
-  const identity = identityEl.value;
-  const name = identity === "aurora-agent" ? "Aurora Agent" : "Caller Demo";
-  setStatus("Creating token...");
+function attachRoomEvents(client) {
+  client.room.on(RoomEvent.TrackSubscribed, (track) => {
+    if (track.kind !== "audio") return;
+    const element = track.attach();
+    element.autoplay = true;
+    control(client, "audio").appendChild(element);
+  });
+  client.room.on(RoomEvent.TrackUnsubscribed, (track) => track.detach());
+  client.room.on(RoomEvent.ParticipantConnected, renderParticipants);
+  client.room.on(RoomEvent.ParticipantDisconnected, renderParticipants);
+  client.room.on(RoomEvent.Disconnected, () => {
+    setControls(client, false);
+    setStatus(client, "Disconnected");
+    renderParticipants();
+  });
+}
 
-  const response = await fetch(`/token?identity=${encodeURIComponent(identity)}&name=${encodeURIComponent(name)}`);
+async function join(client) {
+  setStatus(client, "Creating token...");
+  const params = new URLSearchParams({ identity: client.identity, name: client.name });
+  const response = await fetch(`/token?${params.toString()}`);
+  if (!response.ok) throw new Error(`Token request failed: ${response.status}`);
   const session = await response.json();
 
-  room = new Room({ adaptiveStream: true, dynacast: true });
-  room.on(RoomEvent.TrackSubscribed, (track) => {
-    if (track.kind === "audio") {
-      const element = track.attach();
-      audioEl.appendChild(element);
-    }
-  });
-  room.on(RoomEvent.TrackUnsubscribed, (track) => track.detach());
-  room.on(RoomEvent.ParticipantConnected, renderParticipants);
-  room.on(RoomEvent.ParticipantDisconnected, renderParticipants);
+  client.room = new Room({ adaptiveStream: true, dynacast: true });
+  attachRoomEvents(client);
 
-  setStatus(`Joining ${session.room} as ${session.identity}...`);
-  await room.connect(session.url, session.token);
-  await room.localParticipant.setMicrophoneEnabled(true);
+  setStatus(client, "Joining room...");
+  await client.room.connect(session.url, session.token);
+  await client.room.localParticipant.setMicrophoneEnabled(true);
 
-  muted = false;
-  joinEl.disabled = true;
-  leaveEl.disabled = false;
-  muteEl.disabled = false;
-  muteEl.textContent = "Mute mic";
-  identityEl.disabled = true;
-  setStatus(`Connected to ${session.room} as ${session.identity}`);
+  client.muted = false;
+  control(client, "mute").textContent = "Mute";
+  setControls(client, true);
+  setStatus(client, "Connected");
   renderParticipants();
 }
 
-async function leave() {
-  if (room) {
-    room.disconnect();
-    room = null;
+async function leave(client) {
+  if (client.room) {
+    client.room.disconnect();
+    client.room = null;
   }
-  audioEl.innerHTML = "";
-  participantsEl.innerHTML = "";
-  joinEl.disabled = false;
-  leaveEl.disabled = true;
-  muteEl.disabled = true;
-  identityEl.disabled = false;
-  setStatus("Disconnected");
+  control(client, "audio").innerHTML = "";
+  setControls(client, false);
+  setStatus(client, "Disconnected");
+  renderParticipants();
 }
 
-async function toggleMute() {
-  if (!room) return;
-  muted = !muted;
-  await room.localParticipant.setMicrophoneEnabled(!muted);
-  muteEl.textContent = muted ? "Unmute mic" : "Mute mic";
+async function toggleMute(client) {
+  if (!client.room) return;
+  client.muted = !client.muted;
+  await client.room.localParticipant.setMicrophoneEnabled(!client.muted);
+  control(client, "mute").textContent = client.muted ? "Unmute" : "Mute";
+  setStatus(client, client.muted ? "Muted" : "Connected");
 }
 
-joinEl.addEventListener("click", () => join().catch((error) => setStatus(error.message)));
-leaveEl.addEventListener("click", () => leave());
-muteEl.addEventListener("click", () => toggleMute().catch((error) => setStatus(error.message)));
+for (const client of Object.values(clients)) {
+  control(client, "join").addEventListener("click", () => {
+    join(client).catch((error) => setStatus(client, error.message));
+  });
+  control(client, "leave").addEventListener("click", () => {
+    leave(client).catch((error) => setStatus(client, error.message));
+  });
+  control(client, "mute").addEventListener("click", () => {
+    toggleMute(client).catch((error) => setStatus(client, error.message));
+  });
+}
