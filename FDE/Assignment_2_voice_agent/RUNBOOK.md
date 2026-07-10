@@ -37,6 +37,10 @@ There are **three provider modes**, all behind the same code:
 Assignment_2_voice_agent/
 ├── README.md            ← the plan / concept
 ├── RUNBOOK.md           ← this file
+├── livekit/             ← optional room/session demo
+│   ├── create_room.py
+│   ├── create_token.py
+│   └── requirements.txt
 ├── pipeline/            ← the agent + voice loop
 │   ├── providers.py     ← adaptor: groq / openai / mock
 │   ├── agent.py         ← LLM + tools (availability, booking, transfer, end call)
@@ -287,6 +291,53 @@ Nothing else changes  -  same commands, same loop.
 
 ---
 
+## Part 4  -  Optional LiveKit room/session demo
+
+This step is optional. It shows the real room/session abstraction that sits between a local
+voice agent and a production telephony setup. It does not configure SIP by itself.
+
+```bash
+cd ../livekit
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Set LiveKit credentials:
+
+```
+LIVEKIT_URL=https://your-project.livekit.cloud
+LIVEKIT_API_KEY=<your LiveKit API key>
+LIVEKIT_API_SECRET=<your LiveKit API secret>
+LIVEKIT_ROOM=aurora-demo-room
+```
+
+Create a room:
+
+```bash
+python create_room.py
+```
+
+Create caller and agent participant tokens:
+
+```bash
+python create_token.py --identity caller-demo --name "Caller Demo"
+python create_token.py --identity aurora-agent --name "Aurora Agent"
+```
+
+Conceptually:
+
+```
+LiveKit room = call/session
+caller-demo = caller participant
+aurora-agent = agent participant
+audio track = voice media
+```
+
+For real SIP, add a LiveKit SIP trunk, dispatch rule, and an agent worker that joins the room.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Fix |
@@ -307,3 +358,5 @@ Nothing else changes  -  same commands, same loop.
   (both scenarios), `ivr_menu_mock.py`. Outputs above are the actual captured runs.
 - **Needs your laptop** (Parts 2-3): the `pip install`, a real Groq/OpenAI key, and mic-mode
   `voice_loop.py`. Do one live run before the session using the setup steps in `README.md`.
+- **Optional LiveKit** (Part 4): LiveKit Cloud credentials if you want to create a real room
+  and participant tokens.

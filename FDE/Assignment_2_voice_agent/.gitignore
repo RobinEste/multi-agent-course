@@ -1,5 +1,6 @@
 .DS_Store
 pipeline/.env
 pipeline/.venv/
+livekit/.venv/
 __pycache__/
 *.pyc

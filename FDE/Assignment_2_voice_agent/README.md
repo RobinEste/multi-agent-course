@@ -22,6 +22,11 @@ caller speech -> speech-to-text -> LLM agent with tools -> text-to-speech -> spo
 Assignment_2_voice_agent/
 ├── README.md
 ├── RUNBOOK.md
+├── livekit/
+│   ├── README.md
+│   ├── create_room.py
+│   ├── create_token.py
+│   └── requirements.txt
 ├── pipeline/
 │   ├── agent.py
 │   ├── providers.py
@@ -115,6 +120,53 @@ Then try microphone mode:
 python voice_loop.py
 ```
 
+### Option 4: Optional LiveKit Room Demo
+
+Use this after attendees understand typed and voice mode. LiveKit is not required for the core agent. It demonstrates the room/session layer that a browser caller, phone caller, or agent participant would join in a production voice system.
+
+LiveKit mapping:
+
+| Concept | In This Assignment | In LiveKit |
+|---------|--------------------|------------|
+| Call session | A terminal run or SIP mock call | Room |
+| Caller | Typed input, microphone input, or mock caller | Participant |
+| Audio stream | PCM frames in `voice_loop.py` | Audio track |
+| Agent | `Agent` plus `voice_loop.py` | Agent participant or worker |
+| Transfer | `transfer_to_human` action | SIP REFER, dispatch, or app-level routing |
+
+Install the optional LiveKit dependency:
+
+```bash
+cd FDE/Assignment_2_voice_agent/livekit
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Set LiveKit credentials in your shell or copy them into `pipeline/.env`:
+
+```env
+LIVEKIT_URL=https://your-project.livekit.cloud
+LIVEKIT_API_KEY=your_livekit_api_key
+LIVEKIT_API_SECRET=your_livekit_api_secret
+LIVEKIT_ROOM=aurora-demo-room
+```
+
+Create a room:
+
+```bash
+python create_room.py
+```
+
+Create tokens for a caller and an agent participant:
+
+```bash
+python create_token.py --identity caller-demo --name "Caller Demo"
+python create_token.py --identity aurora-agent --name "Aurora Agent"
+```
+
+This does not set up SIP by itself. Real SIP requires a LiveKit SIP trunk and dispatch rule. The room demo is the right intermediate step because it shows the session/media concept before adding phone-number infrastructure.
+
 ## Cost Control
 
 For development and rehearsal:
@@ -148,6 +200,7 @@ TTS_INSTRUCTIONS=Speak warmly and naturally, like a calm support representative.
 | Tools | Ground the model in application actions instead of free-form guesses | `pipeline/agent.py` |
 | Telephony mock | Shows how the same agent fits behind SIP and RTP style call flow | `mocks/demo_call.py` |
 | IVR mock | Shows how traditional menu routing maps to agent tools | `mocks/ivr_menu_mock.py` |
+| LiveKit room demo | Shows the real session abstraction used by WebRTC and telephony bridges | `livekit/` |
 
 ## FDE Perspective
 
@@ -289,6 +342,29 @@ Why the mock exists:
 - It shows where a platform such as Twilio, LiveKit, Vapi, or an Asterisk/SBC stack would sit
 - It separates the voice-agent logic from carrier infrastructure
 
+#### LiveKit Room Layer
+
+LiveKit is useful to explain the session layer between local terminal demos and real SIP calls.
+
+Why it is needed in a richer demo:
+
+- It gives a real room/session object instead of only terminal input
+- It models callers and agents as participants
+- It carries audio as tracks
+- It is closer to how browser audio, phone audio, and agent workers meet in production
+
+What it does not solve by itself:
+
+- It does not automatically create the hotel booking agent logic
+- It does not replace the need for tools and guardrails
+- It does not replicate SIP unless a SIP trunk and dispatch rule are configured
+
+Practical demo path:
+
+```text
+Voice agent concepts -> typed voice agent -> voice-to-voice agent -> LiveKit room -> agent participant in room -> optional SIP trunk
+```
+
 ## Why This Demo Uses a Cascaded Pipeline
 
 This project uses separate STT, LLM, and TTS stages instead of a single realtime voice model.
@@ -306,11 +382,11 @@ For this assignment, the cascaded approach is the best fit because the goal is t
 | Time | Segment | Substance |
 |------|---------|-----------|
 | 0:00 to 0:15 | FDE architecture explanation | User workflow, layer reasoning, provider choices, guardrails, and why mock mode matters |
-| 0:15 to 0:25 | Offline verification | Run `smoke_test.py`, explain what each checked path proves |
-| 0:25 to 0:40 | Typed mock interaction | Exercise guardrails, availability, booking, transfer, and hangup |
-| 0:40 to 0:55 | Code walkthrough | Review `voice_loop.py`, `agent.py`, `providers.py`, and tool boundaries |
-| 0:55 to 1:05 | Live provider path | Configure OpenAI or Groq if available, otherwise stay on mock |
-| 1:05 to 1:15 | Telephony mock | Run SIP and IVR demos, explain where hosted platforms fit |
+| 0:15 to 0:25 | Voice with text | Run `smoke_test.py` and `voice_loop.py --text` in mock mode |
+| 0:25 to 0:40 | Voice-to-voice | Run microphone mode when available, otherwise keep typed fallback |
+| 0:40 to 0:55 | Code and layer walkthrough | Review `voice_loop.py`, `agent.py`, `providers.py`, and tool boundaries |
+| 0:55 to 1:05 | LiveKit room/session | Create a room and tokens, explain room/participant/track mapping |
+| 1:05 to 1:15 | Agent in room and SIP mapping | Explain agent participant, SIP trunk, dispatch rule, and why SIP remains optional |
 | 1:15 to 1:30 | Q&A | Discuss productionization, tradeoffs, evaluation, latency, cost, and safety |
 
 ## Hands-On Commands
@@ -346,6 +422,15 @@ python demo_call.py --transfer
 python ivr_menu_mock.py
 ```
 
+### LiveKit Room Demo
+
+```bash
+cd ../livekit
+python create_room.py
+python create_token.py --identity caller-demo --name "Caller Demo"
+python create_token.py --identity aurora-agent --name "Aurora Agent"
+```
+
 ## Evaluation Questions
 
 Use these to test whether attendees understand the design:
@@ -357,6 +442,8 @@ Use these to test whether attendees understand the design:
 - What would change if this had to support 1,000 concurrent calls?
 - What would Vapi or a similar hosted platform abstract away?
 - When would ElevenLabs or another specialized TTS provider be worth adding?
+- What does LiveKit add beyond the terminal voice loop?
+- What else is needed before LiveKit becomes a true SIP demo?
 - Which parts would need monitoring in production?
 
 ## Safety Notes
