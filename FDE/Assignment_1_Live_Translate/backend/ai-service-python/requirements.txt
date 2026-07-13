@@ -4,6 +4,9 @@ python-dotenv==1.0.1
 aiosqlite==0.20.0
 
 # --- pick ONE LLM provider (uncomment what you use) ---
-anthropic==0.39.0
+# Bumped from the course default 0.39.0: that release constructs its internal
+# httpx client with a `proxies=` kwarg that modern httpx (>=0.28) removed, which
+# breaks every call on a fresh install. 0.116.0 works with current httpx.
+anthropic==0.116.0
 # google-genai==0.8.0
 # openai==1.51.0

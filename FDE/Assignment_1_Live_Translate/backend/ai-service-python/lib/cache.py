@@ -27,12 +27,29 @@ class TwoTierCache:
         self._stats = {"requests": 0, "memory_hits": 0, "db_hits": 0, "misses": 0}
 
     async def init(self) -> None:
-        """Create the translations table if it doesn't exist."""
-        # TODO (YOU): CREATE TABLE IF NOT EXISTS translations(
-        #   key TEXT PRIMARY KEY, source TEXT, target TEXT, translated TEXT,
-        #   model TEXT, access_count INTEGER DEFAULT 1, created_at TIMESTAMP)
-        # and an index on key. Use aiosqlite.connect(self.db_path).
-        raise NotImplementedError("Implement TwoTierCache.init()")
+        """Create the translations table if it doesn't exist.
+
+        `key` is the PRIMARY KEY, so SQLite already maintains a unique index on
+        it — no separate index needed for the lookups in get()/set().
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            # WAL lets readers proceed while one writer commits — cuts
+            # "database is locked" under concurrent batch writes. Persists on the file.
+            await db.execute("PRAGMA journal_mode=WAL")
+            await db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS translations (
+                    key          TEXT PRIMARY KEY,
+                    source       TEXT NOT NULL,
+                    target       TEXT NOT NULL,
+                    translated   TEXT NOT NULL,
+                    model        TEXT,
+                    access_count INTEGER   DEFAULT 1,
+                    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            await db.commit()
 
     async def get(self, text: str, target: str) -> str | None:
         """Return a cached translation or None. Check memory, then SQLite."""
@@ -44,19 +61,42 @@ class TwoTierCache:
             self._stats["memory_hits"] += 1
             return self._mem[k]
 
-        # 2) SQLite tier
-        # TODO (YOU): SELECT translated FROM translations WHERE key = ?.
-        #   On hit: bump access_count, warm the memory tier (self._mem[k]),
-        #   record self._stats["db_hits"], and return the value.
-        #   On miss: record self._stats["misses"] and return None.
-        raise NotImplementedError("Implement TwoTierCache.get()")
+        # 2) SQLite tier — survives restarts; warms the memory tier on a hit.
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute(
+                "SELECT translated FROM translations WHERE key = ?", (k,)
+            ) as cur:
+                row = await cur.fetchone()
+            if row is not None:
+                await db.execute(
+                    "UPDATE translations SET access_count = access_count + 1 WHERE key = ?",
+                    (k,),
+                )
+                await db.commit()
+                self._mem[k] = row[0]
+                self._stats["db_hits"] += 1
+                return row[0]
+
+        self._stats["misses"] += 1
+        return None
 
     async def set(self, text: str, target: str, translated: str, model: str) -> None:
-        """Store a translation in both tiers."""
+        """Store a translation in both tiers (upsert on the key)."""
         k = _key(text, target)
         self._mem[k] = translated
-        # TODO (YOU): INSERT the row (upsert on key) into SQLite.
-        raise NotImplementedError("Implement TwoTierCache.set()")
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """
+                INSERT INTO translations (key, source, target, translated, model)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    translated   = excluded.translated,
+                    model        = excluded.model,
+                    access_count = access_count + 1
+                """,
+                (k, text, target, translated, model),
+            )
+            await db.commit()
 
     async def size(self) -> int:
         async with aiosqlite.connect(self.db_path) as db:
