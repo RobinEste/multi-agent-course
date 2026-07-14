@@ -51,14 +51,24 @@ class TwoTierCache:
             )
             await db.commit()
 
-    async def get(self, text: str, target: str) -> str | None:
-        """Return a cached translation or None. Check memory, then SQLite."""
-        self._stats["requests"] += 1
+    async def get(self, text: str, target: str, *, count: bool = True) -> str | None:
+        """Return a cached translation or None. Check memory, then SQLite.
+
+        Pass `count=False` for the single-flight re-check in app.translate_one, so
+        one logical translate is tallied once in /stats instead of twice on the
+        miss path (the re-check hit/miss is a cache-primitive detail, not a new
+        request). Side effects (warming memory, bumping access_count) still happen.
+        """
+        def tally(metric: str) -> None:
+            if count:
+                self._stats[metric] += 1
+
+        tally("requests")
         k = _key(text, target)
 
         # 1) memory tier
         if k in self._mem:
-            self._stats["memory_hits"] += 1
+            tally("memory_hits")
             return self._mem[k]
 
         # 2) SQLite tier — survives restarts; warms the memory tier on a hit.
@@ -74,10 +84,10 @@ class TwoTierCache:
                 )
                 await db.commit()
                 self._mem[k] = row[0]
-                self._stats["db_hits"] += 1
+                tally("db_hits")
                 return row[0]
 
-        self._stats["misses"] += 1
+        tally("misses")
         return None
 
     async def set(self, text: str, target: str, translated: str, model: str) -> None:

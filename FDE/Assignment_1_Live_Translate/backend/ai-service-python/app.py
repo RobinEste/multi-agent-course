@@ -123,7 +123,9 @@ async def translate_one(text: str, target: str) -> dict:
     # Miss. Single-flight per (text, target): concurrent identical misses wait on
     # one lock so the LLM runs once; the waiters find the value on the re-check.
     async with _inflight.setdefault(_key(text, target), asyncio.Lock()):
-        cached_value = await cache.get(text, target)
+        # Re-check inside the lock; count=False so this second get() doesn't
+        # double-count the request/miss already tallied by the get() above.
+        cached_value = await cache.get(text, target, count=False)
         if cached_value is not None:
             return {"translated": cached_value, "cached": True, "latencyMs": _elapsed_ms(t0), "model": MODEL}
         # (may raise → 502 via the exception handler)
