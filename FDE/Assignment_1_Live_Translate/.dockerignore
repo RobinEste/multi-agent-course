@@ -1,0 +1,32 @@
+# Docker does not read .gitignore, so this mirrors the rules that
+# backend/*/.gitignore and AGENTS.md ("never commit .env, node_modules/,
+# .venv/, *.db, or *.log") already state.
+#
+# The build context has to be this directory because server.js resolves the
+# widget outside its own package. Without this file that context is ~45 MB /
+# 4851 files instead of ~23 kB / 40, the host .venv and node_modules end up in
+# the images, and the log and SQLite cache the service writes at runtime
+# invalidate the build cache on every local run.
+
+# Dependencies — the build reinstalls these from requirements.txt and
+# package-lock.json. Copying the host's copies also ships macOS-built artefacts
+# into a Linux image and shadows the npm ci output.
+**/.venv/
+**/node_modules/
+**/__pycache__/
+**/*.pyc
+
+# Secrets. README part 1 tells you to `cp .env.example .env` and add your key,
+# so an un-ignored .env means a student bakes their own API key into an image
+# layer. .env.example itself is fine and stays.
+**/.env
+**/.infisical.json
+
+# Runtime state — the cache lives on a volume, the log goes to stdout.
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/*.log
+
+.git/
+**/.DS_Store

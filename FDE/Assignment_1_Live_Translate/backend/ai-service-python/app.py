@@ -30,7 +30,11 @@ from lib.logger import get_logger
 
 load_dotenv()
 
-MODEL = os.getenv("MODEL", MODEL_DEFAULT)
+# `or`, not a getenv default: an env-var that exists but is empty must fall back
+# too. Compose renders an unset passthrough key as absent, but a YAML round-trip
+# (Coolify) can turn it into "", and getenv only falls back on absent. An empty
+# model id 404s every LLM call while /health stays green.
+MODEL = os.getenv("MODEL") or MODEL_DEFAULT
 DB_PATH = os.getenv("TRANSLATION_DB_PATH", "translations.db")
 # Client-side cap on concurrent LLM calls, shared across all in-flight batches.
 # The real ceiling is your Anthropic tier's RPM/TPM (see the x-ratelimit-*
