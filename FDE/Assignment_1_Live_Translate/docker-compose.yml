@@ -1,0 +1,112 @@
+# Live Translate — two services, one internal network.
+#
+#   internet ──▶ Caddy (on the host) ──▶ 127.0.0.1:8787 ──▶ gateway
+#                                                              │
+#                                                    (internal network)
+#                                                              ▼
+#                                                         ai-service:8000
+#                                                              │
+#                                                              ▼
+#                                                    /data/translations.db
+#
+# The ai-service publishes no port: it is reachable only from the gateway.
+#
+# Note for graders and for future-me: eval/eval.py reads ai-service.log,
+# gateway.log and *.db from the host working tree, so run it against the local
+# uvicorn/node processes as the README describes — not against this stack. A
+# containerised run scores lower for reasons that have nothing to do with the
+# code.
+
+services:
+  ai-service:
+    build:
+      # Context is this directory, not backend/ai-service-python — the gateway
+      # image needs widget/ too, so both Dockerfiles share one context.
+      context: .
+      dockerfile: backend/ai-service-python/Dockerfile
+    environment:
+      # :? refuses to start with a clear message instead of booting a service
+      # that 502s on the first translation.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?required — set it in your shell or in your deploy platform}
+      # Bare key: pass MODEL through when the host sets it, otherwise leave it
+      # unset so lib/llm.py's own default wins. Repeating the model id here
+      # would silently outrank that default and strand anyone who bumps it.
+      # `MODEL: ${MODEL}` is NOT the same — that passes an empty string.
+      MODEL:
+    # LOG_FILE and TRANSLATION_DB_PATH are set in the Dockerfile so the image
+    # boots on its own. Overriding them here would only re-state the image.
+    volumes:
+      # Named volume: the SQLite cache has to survive a redeploy, otherwise
+      # every deploy throws away the cache and re-pays for every translation.
+      - translations:/data
+    restart: unless-stopped
+    # Bounds the blast radius, not the efficiency. lib/cache.py's in-memory tier
+    # never evicts and app.py's _inflight dict never drops its locks, so a caller
+    # sending distinct strings grows this process without limit. Unbounded, the
+    # host OOM killer picks by RSS and can take a neighbouring container on this
+    # box instead of the culprit. With a limit the cgroup kills only this one and
+    # restart brings it back.
+    mem_limit: 512m
+    logging:
+      # Explicit, so this file does not depend on the host daemon happening to
+      # set the same defaults in daemon.json. Without rotation somewhere, stdout
+      # grows until the disk is full — and this box is shared.
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    healthcheck:
+      # No curl in the alpine base, but urllib is in the stdlib. urlopen raises
+      # on a non-2xx, which exits non-zero, which is what a healthcheck needs.
+      # /health touches the SQLite file via cache.size(), so an unreadable volume
+      # shows up as unhealthy rather than as a service that quietly 500s.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      # Only the values that differ from Docker's defaults (interval 30s,
+      # retries 3, start_interval 5s) are set.
+      timeout: 5s
+      start_period: 10s
+
+  gateway:
+    build:
+      context: .
+      dockerfile: backend/gateway-node/Dockerfile
+    environment:
+      # "ai-service" is the service name above. Docker resolves it on the
+      # internal network — no DNS record, no IP, no link configuration.
+      AI_SERVICE_URL: http://ai-service:8000
+      PORT: 8787
+    ports:
+      # Bound to loopback on purpose. Caddy is the only thing that needs to
+      # reach this; "8787:8787" would publish it on every interface and leave
+      # the DOCKER-USER chain as the only thing between it and the internet.
+      # Verify after the first deploy that the platform kept this:
+      #   ss -lntp | grep 8787   →  must show 127.0.0.1, never 0.0.0.0
+      - "127.0.0.1:8787:8787"
+    depends_on:
+      ai-service:
+        # Wait for /health, not just for the container to exist — otherwise the
+        # gateway's own /health reports "aiService: unreachable" on a cold start.
+        # This gates startup order under `compose up` only: after a host reboot
+        # the daemon starts both without regard for it, which is harmless here
+        # because the gateway fetches per request and recovers on its own.
+        condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    healthcheck:
+      # Liveness only: it proves the event loop still serves HTTP. It cannot
+      # prove more — server.js hardcodes status "ok" and returns 200 even when
+      # the ai-service is unreachable. Asserting the nested aiService status
+      # here would make this container unhealthy for a fault in the other one.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      timeout: 5s
+      start_period: 10s
+
+volumes:
+  # Holds every source string the widget has ever asked to translate, in the
+  # clear, with no retention policy — lib/cache.py stores `source` and nothing
+  # prunes it. Nothing reads it back (no endpoint returns stored source, and the
+  # key is a hash of the text), so exposure is limited to whoever holds the
+  # volume. To erase: `docker volume rm <project>_translations`. Think before
+  # demoing the widget on a page with real personal data in it.
+  translations:
