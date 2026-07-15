@@ -73,6 +73,12 @@ app.use((req, res, next) => {
 // --- rate limit, on the money-spending routes only -----------------------
 // /health, /stats and /widget.js stay free: they cost nothing and throttling
 // them would only break monitoring and the demo page.
+//
+// Only a cache miss reaches the LLM, so only a miss may spend quota. A flat
+// request limit cannot express that: it throttles a warm cache just as hard as
+// a cold one, which caps throughput on a busy page while costing nothing to
+// protect. The handlers below set X-Cache once the AI service has answered, and
+// the limiter refunds the hit when the response finishes.
 app.use(
   ["/translate", "/translate/batch"],
   rateLimit({
@@ -81,6 +87,8 @@ app.use(
     standardHeaders: "draft-7",
     legacyHeaders: false,
     message: { error: "rate limit exceeded — try again in a minute" },
+    skipSuccessfulRequests: true,
+    requestWasSuccessful: (req, res) => res.getHeader("X-Cache") === "hit",
   })
 );
 
@@ -108,9 +116,13 @@ async function callAiService(path, body, requestId) {
 // --- routes the widget calls ---------------------------------------------
 app.post("/translate", async (req, res) => {
   const { text, target } = req.body || {};
-  if (typeof text !== "string") return res.status(400).json({ error: "`text` (string) is required" });
+  // An empty or blank string is a string, so a bare type check waves it through
+  // and answers 200 with an empty translation. There is nothing to translate.
+  if (typeof text !== "string" || !text.trim())
+    return res.status(400).json({ error: "`text` (non-empty string) is required" });
   try {
     const data = await callAiService("/translate", { text, target: target || "es-MX" }, req.requestId);
+    res.setHeader("X-Cache", data.cached ? "hit" : "miss");
     res.json(data);
   } catch (err) {
     res.status(502).json({ error: "AI service error: " + err.message });
@@ -120,12 +132,18 @@ app.post("/translate", async (req, res) => {
 app.post("/translate/batch", async (req, res) => {
   const { texts, target } = req.body || {};
   if (!Array.isArray(texts)) return res.status(400).json({ error: "`texts` (array) is required" });
+  // Same rule as /translate. The widget already drops blank text nodes in its
+  // TreeWalker, so a blank entry here means a caller built the batch by hand.
+  if (texts.some((t) => typeof t !== "string" || !t.trim()))
+    return res.status(400).json({ error: "every `texts` entry must be a non-empty string" });
   // A batch of distinct strings misses the cache by definition and fans out to
   // one LLM call each, so the array length is the real cost multiplier.
   if (texts.length > MAX_BATCH)
     return res.status(400).json({ error: `at most ${MAX_BATCH} texts per request, got ${texts.length}` });
   try {
     const data = await callAiService("/translate/batch", { texts, target: target || "es-MX" }, req.requestId);
+    // Only a fully cached batch is free; one miss means the LLM was called.
+    res.setHeader("X-Cache", data.results?.every((r) => r.cached) ? "hit" : "miss");
     res.json(data);
   } catch (err) {
     res.status(502).json({ error: "AI service error: " + err.message });
