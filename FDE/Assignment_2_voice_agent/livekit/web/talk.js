@@ -58,14 +58,17 @@ let playbackStartedAt = 0;
 let playbackEchoFloor = 0.012;
 let pendingBargeInTurn = false;
 let currentTurnWasBargeIn = false;
+let activeAgentAudio = null;
+let playbackToken = 0;
+let bargeRecordingCandidate = false;
 
 const tuning = {
   endpointSilenceMs: 650,
   sensitivity: 3.2,
   minTurnMs: 500,
   speechConfirmationMs: 110,
-  bargeInConfirmationMs: 360,
-  bargeInArmMs: 900,
+  bargeInConfirmationMs: 200,
+  bargeInArmMs: 450,
   maxTurnMs: 20000,
 };
 
@@ -172,7 +175,40 @@ function chooseVoice(locale) {
   ) || null;
 }
 
-function finishAgentPlayback() {
+function stopAgentPlayback() {
+  playbackToken += 1;
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  if (activeAgentAudio) {
+    activeAgentAudio.onplay = null;
+    activeAgentAudio.onended = null;
+    activeAgentAudio.onerror = null;
+    activeAgentAudio.pause();
+    activeAgentAudio.removeAttribute("src");
+    activeAgentAudio = null;
+  }
+}
+
+function beginAgentPlayback(token, backend) {
+  if (token !== playbackToken) return;
+  agentSpeaking = true;
+  agentRoot.classList.add("speaking");
+  playbackStartedAt = Date.now();
+  playbackEchoFloor = Math.max(noiseFloor, 0.012);
+  listenCooldownUntil = playbackStartedAt + tuning.bargeInArmMs;
+  pipelineEl.querySelector('[data-stage="tts"]')?.classList.add("complete");
+  appendRuntimeEvent(`tts.playback_started | ${backend}`);
+  if (lastEndpointAt) {
+    const firstAudioMs = Date.now() - lastEndpointAt;
+    metrics.firstAudio.textContent = formatMs(firstAudioMs);
+    appendRuntimeEvent(`turn.first_audio | ${formatMs(firstAudioMs)}`);
+    lastEndpointAt = 0;
+  }
+  setListeningState("Agent speaking", "Interrupt naturally by speaking over Aurora.");
+}
+
+function finishAgentPlayback(token) {
+  if (token !== playbackToken) return;
+  activeAgentAudio = null;
   agentSpeaking = false;
   agentRoot.classList.remove("speaking");
   listenCooldownUntil = Date.now() + 500;
@@ -181,9 +217,11 @@ function finishAgentPlayback() {
   }
 }
 
-function speak(text, locale = "en-US") {
-  if (!("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
+function speakWithBrowserVoice(text, locale, token) {
+  if (!("speechSynthesis" in window) || token !== playbackToken) {
+    finishAgentPlayback(token);
+    return;
+  }
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = locale;
   utterance.rate = 0.98;
@@ -191,34 +229,43 @@ function speak(text, locale = "en-US") {
   const voice = chooseVoice(locale);
   if (voice) utterance.voice = voice;
 
-  utterance.onstart = () => {
-    agentSpeaking = true;
-    agentRoot.classList.add("speaking");
-    playbackStartedAt = Date.now();
-    playbackEchoFloor = Math.max(noiseFloor, 0.012);
-    listenCooldownUntil = playbackStartedAt + tuning.bargeInArmMs;
-    pipelineEl.querySelector('[data-stage="tts"]')?.classList.add("complete");
-    appendRuntimeEvent("tts.playback_started");
-    if (lastEndpointAt) {
-      const firstAudioMs = Date.now() - lastEndpointAt;
-      metrics.firstAudio.textContent = formatMs(firstAudioMs);
-      appendRuntimeEvent(`turn.first_audio | ${formatMs(firstAudioMs)}`);
-      lastEndpointAt = 0;
-    }
-    setListeningState("Agent speaking", "Interrupt naturally by speaking over Aurora.");
-  };
-  utterance.onend = finishAgentPlayback;
-  utterance.onerror = finishAgentPlayback;
+  utterance.onstart = () => beginAgentPlayback(token, "browser");
+  utterance.onend = () => finishAgentPlayback(token);
+  utterance.onerror = () => finishAgentPlayback(token);
   window.speechSynthesis.speak(utterance);
 }
 
-function interruptAgent(detectedAt) {
+function speak(text, locale = "en-US", audioBase64 = "", audioContentType = "audio/wav") {
+  stopAgentPlayback();
+  const token = playbackToken;
+  if (!audioBase64) {
+    speakWithBrowserVoice(text, locale, token);
+    return;
+  }
+
+  const audio = new Audio(`data:${audioContentType};base64,${audioBase64}`);
+  activeAgentAudio = audio;
+  let fellBack = false;
+  const fallback = () => {
+    if (fellBack || token !== playbackToken) return;
+    fellBack = true;
+    activeAgentAudio = null;
+    appendRuntimeEvent("tts.provider_playback_failed | browser fallback");
+    speakWithBrowserVoice(text, locale, token);
+  };
+  audio.onplay = () => beginAgentPlayback(token, "provider");
+  audio.onended = () => finishAgentPlayback(token);
+  audio.onerror = fallback;
+  audio.play().catch(fallback);
+}
+
+function interruptAgent(detectedAt, turnAlreadyRecording = false) {
   if (!agentSpeaking) return;
-  window.speechSynthesis.cancel();
+  stopAgentPlayback();
   agentSpeaking = false;
   agentRoot.classList.remove("speaking");
   listenCooldownUntil = Date.now() + 80;
-  pendingBargeInTurn = true;
+  pendingBargeInTurn = !turnAlreadyRecording;
   addInterruption();
   appendRuntimeEvent("barge_in.detected");
   metrics.barge.textContent = formatMs(Date.now() - detectedAt);
@@ -239,16 +286,16 @@ function thresholds() {
   return {
     start,
     end: Math.max(0.008, start * 0.58),
-    barge: Math.min(0.18, Math.max(0.05, start * 2.1, playbackEchoFloor * 2.4)),
+    barge: Math.min(0.12, Math.max(0.024, start * 1.55, playbackEchoFloor * 1.8)),
   };
 }
 
-function startTurnRecording() {
+function startTurnRecording(isBargeIn = false) {
   if (!listenStream || recorder || agentBusy || muted) return;
   recordedChunks = [];
   discardRecording = false;
   recorder = new MediaRecorder(listenStream);
-  currentTurnWasBargeIn = pendingBargeInTurn;
+  currentTurnWasBargeIn = isBargeIn || pendingBargeInTurn;
   pendingBargeInTurn = false;
   recordingStartedAt = Date.now();
   lastSpeechAt = recordingStartedAt;
@@ -264,7 +311,12 @@ function startTurnRecording() {
     recordedChunks = [];
     callerRoot.classList.remove("speaking");
     if (shouldDiscard || audioBlob.size < 800) {
-      setListeningState("Listening", "Speak naturally. Aurora can be interrupted while talking.");
+      currentTurnWasBargeIn = false;
+      if (agentSpeaking) {
+        setListeningState("Agent speaking", "Interrupt naturally by speaking over Aurora.");
+      } else if (listenStream) {
+        setListeningState("Listening", "Speak naturally. Aurora can be interrupted while talking.");
+      }
       return;
     }
     sendAudioToAgent(audioBlob);
@@ -315,16 +367,24 @@ async function sendAudioToAgent(audioBlob) {
 
     voicePlaceholder.remove();
     addTranscript("caller", payload.transcript, `STT: ${payload.sttModel}`);
-    const meta = [payload.language?.toUpperCase(), payload.action ? `action: ${payload.action}` : ""]
+    const ttsMeta = payload.ttsBackend === "provider"
+      ? `TTS: ${payload.ttsVoice || payload.ttsModel}`
+      : "Browser TTS";
+    const meta = [payload.language?.toUpperCase(), ttsMeta, payload.action ? `action: ${payload.action}` : ""]
       .filter(Boolean)
       .join(" | ");
     addTranscript("agent", payload.reply, meta);
-    providerEl.textContent = `Provider: ${payload.provider} | ${payload.model}`;
+    providerEl.textContent = `Provider: ${payload.provider} | ${payload.model} | ${ttsMeta}`;
     languageEl.textContent = payload.language === "es" ? "Spanish" : "English";
     renderSources(payload.sources);
     renderTrace(payload.trace);
     agentBusy = false;
-    speak(payload.reply, payload.locale || "en-US");
+    speak(
+      payload.reply,
+      payload.locale || "en-US",
+      payload.audioBase64 || "",
+      payload.audioContentType || "audio/wav",
+    );
     if (payload.action === "transfer") agentStatus.textContent = "Transferring";
     if (payload.action === "hangup") agentStatus.textContent = "Call complete";
   } catch (error) {
@@ -356,14 +416,25 @@ function vadLoop() {
       playbackEchoFloor = (playbackEchoFloor * 0.88) + (smoothedLevel * 0.12);
       bargeCandidateAt = 0;
     } else if (smoothedLevel > limit.barge) {
-      bargeCandidateAt = bargeCandidateAt || now;
+      if (!bargeCandidateAt) {
+        bargeCandidateAt = now;
+        bargeRecordingCandidate = true;
+        appendRuntimeEvent("barge_in.candidate");
+        startTurnRecording(true);
+        lastSpeechAt = now;
+      }
       if (now - bargeCandidateAt >= tuning.bargeInConfirmationMs) {
-        interruptAgent(bargeCandidateAt);
-        startTurnRecording();
+        bargeRecordingCandidate = false;
+        interruptAgent(bargeCandidateAt, true);
+        pendingBargeInTurn = false;
         lastSpeechAt = now;
         bargeCandidateAt = 0;
       }
     } else {
+      if (bargeRecordingCandidate) {
+        stopTurnRecording(true);
+        bargeRecordingCandidate = false;
+      }
       bargeCandidateAt = 0;
       playbackEchoFloor = (playbackEchoFloor * 0.995) + (smoothedLevel * 0.005);
     }
@@ -463,6 +534,7 @@ async function startCall() {
     throw new Error("This browser does not support the required audio APIs.");
   }
   setCallControls(true);
+  agentBusy = true;
   callerStatus.textContent = "Connecting";
   agentStatus.textContent = "Connecting";
   await fetch("/reset", { method: "POST", headers: { "X-Session-ID": sessionId } });
@@ -476,16 +548,41 @@ async function startCall() {
   });
   callerStatus.textContent = "Connected";
   renderParticipants();
-  speak("Thanks for calling Aurora Hotel reservations. How can I help?", "en-US");
+  try {
+    const greetingResponse = await fetch("/greeting", {
+      method: "POST",
+      headers: { "X-Session-ID": sessionId },
+    });
+    const greeting = await greetingResponse.json();
+    if (!greetingResponse.ok) throw new Error(greeting.error || "Greeting failed");
+    const ttsMeta = greeting.ttsBackend === "provider"
+      ? `TTS: ${greeting.ttsVoice || greeting.ttsModel}`
+      : "Browser TTS";
+    providerEl.textContent = `Provider: ${greeting.provider} | ${greeting.model} | ${ttsMeta}`;
+    renderTrace(greeting.trace);
+    agentBusy = false;
+    speak(
+      greeting.reply,
+      greeting.locale || "en-US",
+      greeting.audioBase64 || "",
+      greeting.audioContentType || "audio/wav",
+    );
+  } catch (error) {
+    agentBusy = false;
+    appendRuntimeEvent("tts.greeting_fallback | browser");
+    speak("Thanks for calling Aurora Hotel reservations. How can I help?", "en-US");
+  }
 }
 
 async function endCall() {
   if (vadFrame) cancelAnimationFrame(vadFrame);
   vadFrame = null;
   stopTurnRecording(true);
-  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  stopAgentPlayback();
   agentSpeaking = false;
   agentBusy = false;
+  bargeRecordingCandidate = false;
+  bargeCandidateAt = 0;
   listenStream?.getTracks().forEach((track) => track.stop());
   listenStream = null;
   if (audioContext) await audioContext.close();

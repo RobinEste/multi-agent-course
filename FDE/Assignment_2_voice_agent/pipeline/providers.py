@@ -43,6 +43,13 @@ PRESETS = {
     },
 }
 
+DEFAULT_STT_PROMPT = (
+    "Aurora Hotel reservations conversation in English or Spanish. "
+    "Hotel vocabulary: reservation, booking, check-in, check-out, cancellation policy, "
+    "pet policy, parking, breakfast, accessibility, habitación, reserva, política de "
+    "cancelación, mascotas, estacionamiento, desayuno, accesibilidad."
+)
+
 
 def _env_or_default(key: str, default: str) -> str:
     """Return a non-empty environment override or the provider preset.
@@ -76,6 +83,7 @@ class Provider:
         # Per-stage overrides fall back to the preset.
         self.llm_model = _env_or_default("LLM_MODEL", p["llm_model"])
         self.stt_model = _env_or_default("STT_MODEL", p["stt_model"])
+        self.stt_prompt = _env_or_default("STT_PROMPT", DEFAULT_STT_PROMPT)
         self.tts_model = _env_or_default("TTS_MODEL", p["tts_model"])
         self.tts_voice = _env_or_default("TTS_VOICE", p["tts_voice"])
         self.tts_instructions = os.getenv("TTS_INSTRUCTIONS")
@@ -83,13 +91,18 @@ class Provider:
         self.tts_backend = os.getenv("TTS_BACKEND", "provider").lower()
 
     # --- LLM ---
-    def chat(self, messages: list[dict], tools: list[dict] | None = None):
+    def chat(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        tool_choice=None,
+    ):
         """One chat-completion call. Returns the raw SDK response."""
         return self.client.chat.completions.create(
             model=self.llm_model,
             messages=messages,
             tools=tools or None,
-            tool_choice="auto" if tools else None,
+            tool_choice=(tool_choice or "auto") if tools else None,
             temperature=0.3,
         )
 
@@ -98,10 +111,15 @@ class Provider:
         """Transcribe raw 16-bit mono PCM via Whisper."""
         wav = _pcm_to_wav(pcm_int16, sample_rate)
         wav.name = "turn.wav"  # SDK infers format from the filename
+        transcription_args = {
+            "model": self.stt_model,
+            "file": wav,
+            "response_format": "text",
+        }
+        if self.stt_prompt:
+            transcription_args["prompt"] = self.stt_prompt
         resp = self.client.audio.transcriptions.create(
-            model=self.stt_model,
-            file=wav,
-            response_format="text",
+            **transcription_args,
         )
         return (resp if isinstance(resp, str) else resp.text).strip()
 
@@ -166,13 +184,30 @@ class MockProvider:
         ]
         self._stt_i = 0
 
-    def chat(self, messages: list[dict], tools=None):
+    def chat(self, messages: list[dict], tools=None, tool_choice=None):
         """Rule-based reply mimicking OpenAI-style tool calling."""
         last = messages[-1]
         spanish = "Current response language: Spanish" in messages[0].get("content", "")
+        forced_tool = _tool_choice_name(tool_choice)
+        if forced_tool == "search_hotel_knowledge" and last.get("role") == "user":
+            return _mk_tool(forced_tool, {"query": last.get("content") or ""})
         # After a tool ran, speak a reply built from its result.
         if last.get("role") == "tool":
             result = last["content"]
+            if result.lower().startswith("response language set to spanish"):
+                original = _last_user_text(messages).lower()
+                if _mock_knowledge_request(original):
+                    return _mk_tool("search_hotel_knowledge", {"query": original})
+                if _mock_off_topic(original):
+                    return _mk_text("Solo puedo ayudar con reservas de hotel. ¿Quiere reservar, cambiar o cancelar una estancia?")
+                return _mk_text("Claro. Puedo ayudarle con una reserva en Aurora Hotel.")
+            if result.lower().startswith("response language set to english"):
+                original = _last_user_text(messages).lower()
+                if _mock_knowledge_request(original):
+                    return _mk_tool("search_hotel_knowledge", {"query": original})
+                if _mock_off_topic(original):
+                    return _mk_text("I can only help with hotel reservations. Are you looking to book, change, or cancel a stay?")
+                return _mk_text("Of course. I can continue in English with your Aurora Hotel reservation.")
             if result.lower().startswith("available rooms"):
                 if spanish:
                     return _mk_text(f"{result} ¿Quiere que reserve una de estas habitaciones?")
@@ -194,28 +229,26 @@ class MockProvider:
 
         text = (last.get("content") or "").lower()
         tokens = set(re.findall(r"[\wáéíóúüñ]+", text, flags=re.UNICODE))
-        if any(w in text for w in (
-            "cancellation policy", "cancel policy", "check-in", "check in", "check-out",
-            "check out", "parking", "pets", "pet policy", "breakfast", "accessible",
-            "accessibility", "policy", "estacionamiento", "mascotas", "desayuno",
-        )):
-            return _mk_tool("search_hotel_knowledge", {"query": last.get("content") or ""})
-        if any(w in text for w in ("bye", "goodbye", "that's all", "thats all",
-                                   "nothing else", "no thanks", "hang up", "adiós", "adios")):
-            return _mk_tool("end_call", {})
-        if any(w in text for w in (
-            "weather", "news", "sports", "stock", "joke", "trivia", "clima", "noticias",
-        )):
-            if spanish:
-                return _mk_text("Solo puedo ayudar con reservas de hotel. ¿Quiere reservar, cambiar o cancelar una estancia?")
-            return _mk_text("I can only help with hotel reservations. Are you looking to book, change, or cancel a stay?")
         if any(phrase in text for phrase in (
             "speak spanish", "switch to spanish", "spanish please", "habla español",
             "hable español", "en español",
         )):
-            return _mk_text("Claro. Puedo ayudarle con una reserva en Aurora Hotel.")
-        if any(phrase in text for phrase in ("speak english", "switch to english", "english please")):
-            return _mk_text("Of course. I can continue in English with your Aurora Hotel reservation.")
+            return _mk_tool("set_language", {"language": "es"})
+        if any(phrase in text for phrase in (
+            "speak english", "switch to english", "switch back to english",
+            "back to english", "return to english", "english please", "english again",
+            "habla inglés", "hable inglés", "en inglés", "habla ingles",
+        )):
+            return _mk_tool("set_language", {"language": "en"})
+        if _mock_knowledge_request(text):
+            return _mk_tool("search_hotel_knowledge", {"query": last.get("content") or ""})
+        if any(w in text for w in ("bye", "goodbye", "that's all", "thats all",
+                                   "nothing else", "no thanks", "hang up", "adiós", "adios")):
+            return _mk_tool("end_call", {})
+        if _mock_off_topic(text):
+            if spanish:
+                return _mk_text("Solo puedo ayudar con reservas de hotel. ¿Quiere reservar, cambiar o cancelar una estancia?")
+            return _mk_text("I can only help with hotel reservations. Are you looking to book, change, or cancel a stay?")
         if any(phrase in text for phrase in (
             "another reservation", "another guest", "other guest", "someone else's",
         )):
@@ -272,6 +305,34 @@ def _mk_tool(name: str, args: dict):
     tc = NS(id=f"call_{name}", type="function",
             function=NS(name=name, arguments=json.dumps(args)))
     return NS(choices=[NS(message=NS(content=None, tool_calls=[tc]))])
+
+
+def _tool_choice_name(tool_choice) -> str | None:
+    if not isinstance(tool_choice, dict):
+        return None
+    function = tool_choice.get("function") or {}
+    return function.get("name")
+
+
+def _last_user_text(messages: list[dict]) -> str:
+    return next(
+        (message.get("content") or "" for message in reversed(messages) if message.get("role") == "user"),
+        "",
+    )
+
+
+def _mock_knowledge_request(text: str) -> bool:
+    return any(word in text for word in (
+        "cancellation policy", "cancel policy", "check-in", "check in", "check-out",
+        "check out", "parking", "pets", "pet policy", "breakfast", "accessible",
+        "accessibility", "policy", "estacionamiento", "mascotas", "desayuno",
+    ))
+
+
+def _mock_off_topic(text: str) -> bool:
+    return any(word in text for word in (
+        "weather", "news", "sports", "stock", "joke", "trivia", "clima", "noticias",
+    ))
 
 
 def _previous_tool_arguments(messages: list[dict]) -> dict:

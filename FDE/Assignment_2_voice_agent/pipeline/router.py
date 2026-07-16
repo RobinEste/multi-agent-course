@@ -1,4 +1,4 @@
-"""Session-level language routing for the Aurora hotel agent."""
+"""Validated session-level language state for the Aurora hotel agent."""
 
 from __future__ import annotations
 
@@ -10,20 +10,6 @@ LANGUAGES = {
     "es": {"name": "Spanish", "locale": "es-ES"},
 }
 
-_SPANISH_MARKERS = {
-    "espanol", "español", "hola", "habitacion", "habitación", "reserva",
-    "reservar", "gracias", "noches", "personas", "quiero", "necesito",
-    "puedes", "puede", "hablar", "cancelacion", "cancelación",
-}
-
-_ENGLISH_SWITCHES = (
-    "speak english", "switch to english", "in english", "english please",
-)
-_SPANISH_SWITCHES = (
-    "speak spanish", "switch to spanish", "in spanish", "spanish please",
-    "habla español", "hable español", "en español",
-)
-
 
 @dataclass(frozen=True)
 class Route:
@@ -34,35 +20,33 @@ class Route:
 
 
 class AgentRouter:
-    """Keep a stable language choice and support explicit mid-call switching."""
+    """Keep validated language state selected by the agent's control tool."""
 
     def __init__(self, default_language: str = "en"):
         self.language = default_language if default_language in LANGUAGES else "en"
 
-    def route(self, text: str) -> Route:
-        normalized = text.lower().strip()
+    def route(self) -> Route:
+        """Return current session state; intent detection belongs to the LLM tool."""
+        config = LANGUAGES[self.language]
+        return Route(
+            language=self.language,
+            locale=config["locale"],
+            changed=False,
+            reason="session",
+        )
+
+    def set_language(self, language: str) -> Route:
+        """Validate and persist a language requested through `set_language`."""
+        if language not in LANGUAGES:
+            raise ValueError(f"Unsupported language {language!r}")
         previous = self.language
-        reason = "session"
-
-        if any(phrase in normalized for phrase in _SPANISH_SWITCHES):
-            self.language = "es"
-            reason = "explicit_switch"
-        elif any(phrase in normalized for phrase in _ENGLISH_SWITCHES):
-            self.language = "en"
-            reason = "explicit_switch"
-        else:
-            words = {word.strip(".,!?;:\"'()") for word in normalized.split()}
-            spanish_score = len(words & _SPANISH_MARKERS)
-            if spanish_score >= 2:
-                self.language = "es"
-                reason = "language_markers"
-
+        self.language = language
         config = LANGUAGES[self.language]
         return Route(
             language=self.language,
             locale=config["locale"],
             changed=self.language != previous,
-            reason=reason,
+            reason="set_language_tool",
         )
 
     def instruction(self) -> str:

@@ -63,7 +63,7 @@
         "expect": {
           "contains": "Solo puedo ayudar",
           "language": "es",
-          "tools": []
+          "tools": ["set_language"]
         }
       }
     ]

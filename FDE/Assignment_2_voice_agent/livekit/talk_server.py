@@ -5,6 +5,7 @@ Run this after `./start_local_server.sh`, then open http://localhost:5173.
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import sys
@@ -18,6 +19,8 @@ from urllib.parse import parse_qs, urlparse
 import jwt
 from livekit import api
 
+from env_loader import load_env_files
+
 HOST = os.getenv("TALK_HOST", "localhost")
 PORT = int(os.getenv("TALK_PORT", "5173"))
 ROOT = Path(__file__).resolve().parent
@@ -28,17 +31,11 @@ _session_registry_lock = threading.Lock()
 _agent_sessions: dict[str, object] = {}
 _session_locks: dict[str, threading.Lock] = {}
 
+GREETING = "Thanks for calling Aurora Hotel reservations. How can I help?"
+
 
 def _load_env_files() -> None:
-    for path in (PIPELINE_ROOT / ".env", ROOT / ".env"):
-        if not path.exists():
-            continue
-        for raw in path.read_text().splitlines():
-            line = raw.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+    load_env_files((PIPELINE_ROOT / ".env", ROOT / ".env"))
 
 
 def _agent_provider_name() -> str:
@@ -116,13 +113,58 @@ def _finish_response(agent, trace, reply: str, action: str | None, **extra) -> d
     }
 
 
+def _browser_tts_payload(agent, trace, text: str) -> dict:
+    """Return provider audio for the browser or select its local voice fallback."""
+    provider = agent.provider
+    backend = getattr(provider, "tts_backend", "provider")
+    if backend != "provider" or getattr(provider, "name", "") == "mock":
+        return {"ttsBackend": "browser"}
+
+    model = getattr(provider, "tts_model", "unknown")
+    voice = getattr(provider, "tts_voice", "unknown")
+    try:
+        with trace.span("tts", model=model, voice=voice):
+            audio = provider.synthesize(text)
+    except Exception as exc:
+        trace.event("tts.fallback", errorType=type(exc).__name__)
+        return {"ttsBackend": "browser", "ttsFallback": True}
+
+    if not audio:
+        trace.event("tts.fallback", errorType="EmptyAudio")
+        return {"ttsBackend": "browser", "ttsFallback": True}
+    return {
+        "ttsBackend": "provider",
+        "ttsModel": model,
+        "ttsVoice": voice,
+        "audioContentType": "audio/wav",
+        "audioBase64": base64.b64encode(audio).decode("ascii"),
+    }
+
+
+def _greeting_reply(session_id: str) -> dict:
+    agent, lock = _get_session(session_id)
+    trace = _trace(session_id, "greeting")
+    trace.event("greeting.requested")
+    with lock:
+        tts = _browser_tts_payload(agent, trace, GREETING)
+    return _finish_response(
+        agent,
+        trace,
+        GREETING,
+        None,
+        response_sources=[],
+        **tts,
+    )
+
+
 def _agent_reply(text: str, session_id: str, turn_id: str | None) -> dict:
     agent, lock = _get_session(session_id)
     trace = _trace(session_id, turn_id)
     trace.event("input.text")
     with lock:
         reply, action = agent.respond(text, trace=trace)
-    return _finish_response(agent, trace, reply, action)
+        tts = _browser_tts_payload(agent, trace, reply)
+    return _finish_response(agent, trace, reply, action, **tts)
 
 
 def _voice_agent_reply(
@@ -135,6 +177,8 @@ def _voice_agent_reply(
     agent, lock = _get_session(session_id)
     trace = _trace(session_id, turn_id)
     trace.event("audio.received", bytes=len(audio), contentType=content_type)
+    if was_barge_in:
+        trace.event("barge_in.turn_started")
     with lock:
         if getattr(agent.provider, "name", "") == "mock":
             with trace.span("stt", model=getattr(agent.provider, "stt_model", "unknown")):
@@ -148,11 +192,15 @@ def _voice_agent_reply(
             else:
                 audio_file.name = "caller.webm"
             with trace.span("stt", model=getattr(agent.provider, "stt_model", "unknown")):
-                stt = agent.provider.client.audio.transcriptions.create(
-                    model=agent.provider.stt_model,
-                    file=audio_file,
-                    response_format="text",
-                )
+                transcription_args = {
+                    "model": agent.provider.stt_model,
+                    "file": audio_file,
+                    "response_format": "text",
+                }
+                stt_prompt = getattr(agent.provider, "stt_prompt", "")
+                if stt_prompt:
+                    transcription_args["prompt"] = stt_prompt
+                stt = agent.provider.client.audio.transcriptions.create(**transcription_args)
             transcript = (stt if isinstance(stt, str) else stt.text).strip()
         if was_barge_in and _is_probable_playback_echo(transcript):
             trace.event("barge_in.echo_suppressed", transcript=transcript)
@@ -168,6 +216,7 @@ def _voice_agent_reply(
                 response_sources=[],
             )
         reply, action = agent.respond(transcript, trace=trace)
+        tts = _browser_tts_payload(agent, trace, reply)
     return _finish_response(
         agent,
         trace,
@@ -175,6 +224,7 @@ def _voice_agent_reply(
         action,
         transcript=transcript,
         sttModel=getattr(agent.provider, "stt_model", "unknown"),
+        **tts,
     )
 
 
@@ -250,6 +300,11 @@ class Handler(SimpleHTTPRequestHandler):
         if parsed.path == "/reset":
             _reset_session(session_id)
             return self._send_json({"reset": True, "sessionId": session_id})
+        if parsed.path == "/greeting":
+            try:
+                return self._send_json(_greeting_reply(session_id))
+            except Exception as exc:
+                return self._send_json({"error": str(exc)}, status=500)
         if parsed.path == "/voice-agent":
             return self._handle_voice_agent(session_id, turn_id)
         if parsed.path != "/agent":
@@ -307,6 +362,7 @@ def main() -> None:
     print(f"LiveKit URL: {_livekit_url()}")
     print(f"Room: {_livekit_room()}")
     print(f"Agent provider: {_agent_provider_name()}")
+    print(f"TTS backend: {os.getenv('TTS_BACKEND', 'provider').lower()}")
     print("Use the two panes for LiveKit audio. Use the conversation panel for the hotel agent.")
     try:
         server.serve_forever()

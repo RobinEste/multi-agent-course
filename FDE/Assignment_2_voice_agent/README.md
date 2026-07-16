@@ -110,6 +110,8 @@ python voice_loop.py
 
 The terminal reports capture, STT, routing, retrieval, LLM, tool, TTS, and total turn timing. `TTS_BACKEND=system` uses the macOS voice and avoids cloud TTS cost during rehearsal.
 
+Set `TTS_BACKEND=provider` to use the selected provider's configured TTS model and voice. Provider TTS incurs audio-generation cost.
+
 ## Groq Setup
 
 The provider adapter uses the same tool-calling interface for OpenAI and Groq.
@@ -154,6 +156,8 @@ python talk_server.py
 
 Open `http://localhost:5173`, click **Start call**, allow microphone access, and speak naturally. The browser automatically joins the caller and Aurora participants, detects caller turns, displays grounding sources, and shows stage telemetry.
 
+The LiveKit bridge honors `TTS_BACKEND` from `pipeline/.env`. With `provider`, the server synthesizes WAV audio using `TTS_MODEL` and `TTS_VOICE`, and the UI labels the response with the selected voice. With `system` or `mock`, the browser uses its installed speech voice.
+
 The browser exposes two workshop controls:
 
 - **Endpoint silence** changes how long a pause must be before a turn is committed.
@@ -163,7 +167,7 @@ Speak while Aurora is playing a response to demonstrate playback barge-in. The b
 
 ### LiveKit Boundary
 
-The caller and Aurora identities are real LiveKit room participants. The current workshop agent processes completed browser audio through `/voice-agent` and plays the response with browser speech synthesis. It is not yet a room-native agent worker that subscribes to a LiveKit audio track and publishes a TTS track.
+The caller and Aurora identities are real LiveKit room participants. The current workshop agent processes completed browser audio through `/voice-agent`, returns provider-generated WAV audio when enabled, and otherwise uses browser speech synthesis. It is not yet a room-native agent worker that subscribes to a LiveKit audio track and publishes a TTS track.
 
 A production extension would add a LiveKit agent worker, persistent session storage, distributed cancellation, and SIP dispatch.
 
@@ -176,9 +180,12 @@ Aurora uses different boundaries for different kinds of truth:
 | Policies, parking, pets, breakfast, accessibility | Local RAG | Read-oriented knowledge with source evidence |
 | Availability and room rates | Tool call | Dynamic operational truth |
 | Booking creation | Tool call | Auditable state mutation |
+| Language switching | `set_language` control tool | Validated session state and matching TTS locale |
 | Transfer and hangup | Control action | Runtime and telephony behavior |
 
 The local retriever indexes Markdown sections with SQLite FTS5. It includes English and Spanish query expansion while keeping the source document unchanged.
+
+Aurora uses hybrid tool routing. High-confidence policy and amenity phrases select `search_hotel_knowledge` in application code before the first model call. Other tool decisions remain automatic. This keeps retrieval reliable after interruptions or off-topic turns without routing a request such as `cancel my reservation` into policy search.
 
 ## Telemetry
 

@@ -35,11 +35,15 @@ The browser shows:
 - LiveKit participants and published audio state
 - Caller and agent activity
 - Automatic turn detection
-- Playback barge-in
+- Playback barge-in with candidate pre-roll so the first interrupted word is retained
 - English and Spanish routing
 - RAG sources
 - STT, LLM, tool, server, first-audio, and interruption timing
 - Adjustable endpoint silence and speech sensitivity
+
+Language state changes only after an explicit request that names the target
+language, such as `Please speak Spanish` or `Switch back to English`. Multilingual
+speech by itself does not change the configured response language.
 
 ## Local Defaults
 
@@ -56,6 +60,8 @@ Override these values in `livekit/.env` when using another server. The scripts a
 
 `PROVIDER=openai` or `PROVIDER=groq` transcribes the recorded browser turn and runs the live hotel agent. `PROVIDER=mock` uses scripted transcripts, deterministic tools, and no paid calls.
 
+`TTS_BACKEND=provider` generates WAV audio through the selected provider using `TTS_MODEL` and `TTS_VOICE`. `TTS_BACKEND=system` uses browser speech synthesis in the LiveKit UI and avoids provider TTS cost. The browser falls back to its installed voice if provider synthesis or playback fails.
+
 The talk server stores independent agent state per browser session and writes structured telemetry to `../logs/voice-events.jsonl`.
 
 ## Architecture Boundary
@@ -63,7 +69,7 @@ The talk server stores independent agent state per browser session and writes st
 The two identities are real room participants, but the AI processing path is a workshop bridge:
 
 ```text
-browser microphone -> local endpointing -> HTTP /voice-agent -> STT and agent -> browser TTS
+browser microphone -> local endpointing -> HTTP /voice-agent -> STT and agent -> provider WAV or browser TTS
 ```
 
 A room-native production worker would subscribe directly to the caller audio track, stream audio through STT or a realtime model, publish an agent audio track, and coordinate distributed cancellation.
@@ -88,3 +94,4 @@ A real SIP deployment requires a trunk, dispatch rule, internet-reachable signal
 | Turns commit too quickly | Increase Endpoint silence |
 | Turns feel slow | Decrease Endpoint silence carefully |
 | No real transcription in mock mode | Set a live provider in `pipeline/.env` |
+| Voice still sounds like the system voice | Set `TTS_BACKEND=provider`, restart `talk_server.py`, and confirm the UI shows `TTS: <voice>` |

@@ -42,6 +42,27 @@
     ]
   },
   {
+    "id": "grounding.after_off_topic",
+    "description": "A policy question retrieves knowledge after an off-topic refusal.",
+    "turns": [
+      {
+        "user": "What is today's FIFA score?",
+        "expect": {
+          "contains": "hotel reservations",
+          "tools": []
+        }
+      },
+      {
+        "user": "Sure, what does the cancellation policy look like?",
+        "expect": {
+          "contains": "6:00 PM",
+          "tools": ["search_hotel_knowledge"],
+          "sourceContains": "hotel_policies.md#Cancellation"
+        }
+      }
+    ]
+  },
+  {
     "id": "router.language_switch",
     "description": "The same session can switch to Spanish.",
     "turns": [
@@ -49,7 +70,8 @@
         "user": "Please speak Spanish.",
         "expect": {
           "contains": "Claro",
-          "language": "es"
+          "language": "es",
+          "tools": ["set_language"]
         }
       },
       {
@@ -58,6 +80,20 @@
           "contains": "¿Quiere",
           "tools": ["check_availability"],
           "language": "es"
+        }
+      },
+      {
+        "user": "Let me switch back to English.",
+        "expect": {
+          "language": "en",
+          "tools": ["set_language"]
+        }
+      },
+      {
+        "user": "¡Gracias!",
+        "expect": {
+          "language": "en",
+          "tools": []
         }
       }
     ]
