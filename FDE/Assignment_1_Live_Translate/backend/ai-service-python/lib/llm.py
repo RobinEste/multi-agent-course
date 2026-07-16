@@ -79,6 +79,15 @@ async def translate_text(text: str, target: str = "es-MX", model: str = MODEL_DE
     Fails loud: any provider/LLM error propagates so the caller returns a 502.
     We never return the untranslated input as if it succeeded.
     """
+    # Nothing to translate (whitespace, a bare number, a separator, a lone symbol):
+    # return it unchanged instead of calling the model. A no-letter string gives the
+    # LLM nothing to work with and it answers with a conversational preamble
+    # ("I'm ready to help you translate…") that then renders on the page. This makes
+    # the prompt's own "return a segment with nothing to translate unchanged" rule
+    # deterministic. It is NOT the forbidden return-input-on-error path: there is no
+    # error here, and prices/codes ($50, 4471) are meant to pass through untouched.
+    if not any(c.isalpha() for c in text):
+        return text
     client = _get_client()
     # 2026-07-13: system is a plain string on purpose — no prompt caching yet.
     # Haiku 4.5's cacheable minimum is 4096 tokens; this prompt is far below it, so a
