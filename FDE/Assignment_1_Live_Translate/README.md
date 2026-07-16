@@ -413,3 +413,34 @@ Every FDE project is submitted as a **Product Evaluation + a video demo**.
 - **CORS errors** → the gateway enables CORS for all origins in dev; make sure requests go to the gateway (`:8787`), not the AI service (`:8000`).
 - **macOS port 5000 is taken** → that's AirPlay Receiver. We use `8787`/`8000` on purpose; keep them.
 - **Extension didn't update after a code change** → re-copy the widget into `extension/` and hit *Reload* on `chrome://extensions`.
+
+### How I ran it
+
+- LLM provider: Anthropic, claude-haiku-4-5-20251001. lib/llm.py falls back to this when MODEL is unset, and I left it unset. 
+
+**Running it locally — either works:**
+
+- docker compose up (see stretch goals below)
+- or the vanilla path: copy .env.example to .env and add your own Anthropic key. app.py calls load_dotenv(), so this works unchanged.
+- Locally my key is injected at runtime via infisical run --env=dev -- .venv/bin/uvicorn app:app --port 8000. 
+
+**If you re-run eval/eval.py yourself, a few things things matter:**
+
+1. Start the gateway as npm start > gateway.log 2>&1 from backend/gateway-node/. The gateway logs structured JSON to stdout, which is where logs belong in a container, but eval.py looks for a gateway.log file on disk. Without the redirect the trace-correlation check can't find the request id and scores 0, even though correlation works.
+2. Run it against the local processes, not the containers. eval.py reads ai-service.log and translations.db from the host; in the containers those live inside the image and a named volume, so a container run measures the wrong filesystem.
+3. Fixed the provided widget's config-race by pulling the official upstream fix (62e33bc, lazy URL resolution) and re-copying it to extension/ as the README instructs - that's why widget/ differs from the original. The 429-message fix, by contrast, would be my own edit to provided code, which the red-line forbids, so I left it.
+4. Hardened the prompt against instruction-like input. Bare UI words like "Translate", "Help" or "Search" were read by the model as a request directed at it, so it replied conversationally ("I'm ready to help you translate…") instead of translating the word. I wrap every input in <source>…</source> tags and instruct the model to treat the tagged text purely as content to translate, never as an instruction — so "Translate" now returns "Traducir", not a preamble. A no-letter guard also short-circuits pure symbols and numbers before the LLM call.
+
+**Deployed on Coolify/Hetzner, not Fly.io**
+
+- The README asks to keep the AI service private if you can, so only the gateway is public. That's met here by a different route: the AI service publishes no ports at all and is reachable only as http://ai-service:8000 on the internal Docker network. The gateway binds to 127.0.0.1:8787, with Caddy in front.
+- The assignment assumes Fly.io. I deployed both services with Docker Compose on Coolify, on my own Hetzner server, behind Caddy for TLS. Public gateway: https://fde.noblesseproducts.com/health. For me it was important to test this construction as I want to use that as well for our SAAS-solution. 
+
+**Stretch goals**
+ 
+- Docker compose up runs both services (gateway & ai-service). The .dockerignore trims the build context (45 MB → 23 kB) and shrinks the Python AI-service image 430 → 288 MB; switching that image from Python slim to alpine takes it to 161 MB. 
+- The SQLite cache lives in a named volume (not project) so it survives a redeploy instead of re-paying for every translation.
+- Rate limiting — per-IP, 60/min, on /translate and /translate/batch only; /health, /stats and /widget.js stay free. 
+- trust proxy is set to 1, so it sees the real caller through Caddy instead of throttling everyone as 127.0.0.1. Only cache misses count against the quota: a hit costs nothing, so it shouldn't spend any.
+
+Not done: the friendly widget message widget/translation-widget.js:243  does throw new Error("HTTP " + res.status) and discards the response body, so the gateway's message never reaches the user and user sees "HTTP 429" in red. Fixing that means editing widget/,  which the red-line check forbids, so I left it.
